@@ -61,6 +61,13 @@ async function createMetafield(orderId, purchaseOrder) {
 
 // Function to setup webhooks
 async function setupWebhooks() {
+  if (!process.env.HOST) {
+    console.error('HOST environment variable is not set');
+    return;
+  }
+
+  console.log('Setting up webhook with URL:', `${process.env.HOST}/webhooks/order/create`);
+  
   const client = new shopify.clients.Rest({
     session: {
       shop: process.env.SHOPIFY_SHOP_NAME,
@@ -69,7 +76,7 @@ async function setupWebhooks() {
   });
 
   try {
-    await client.post({
+    const response = await client.post({
       path: 'webhooks',
       data: {
         webhook: {
@@ -79,9 +86,11 @@ async function setupWebhooks() {
         }
       }
     });
+    
+    console.log('Webhook registration response:', response);
     console.log('Webhook registered successfully');
   } catch (error) {
-    console.error('Error registering webhook:', error);
+    console.error('Error registering webhook:', error.response?.body);
     throw error;
   }
 }
