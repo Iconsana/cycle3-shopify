@@ -1,7 +1,6 @@
 {
-  "name": "shopify-po-automation",
+  "name": "cycle3-shopify",
   "version": "1.0.0",
-  "main": "src/index.js",
   "type": "module",
   "scripts": {
     "start": "node src/index.js",
