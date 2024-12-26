@@ -1,17 +1,3 @@
-# Environment variables
-.env
-.env.*
-
-# Dependencies
 node_modules/
-
-# Logs
+.env
 *.log
-npm-debug.log*
-
-# OS generated files
-.DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
