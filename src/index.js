@@ -1,6 +1,6 @@
 import express from 'express';
 import dotenv from 'dotenv';
-import shopify, { generatePurchaseOrder, setupWebhooks } from '../config/shopify.js';
+import shopify, { generatePurchaseOrder } from '../config/shopify.js';
 
 dotenv.config();
 
@@ -9,28 +9,24 @@ const port = process.env.PORT || 3000;
 
 app.use(express.json());
 
-// Add more detailed homepage
-app.get('/', (req, res) => {
-  console.log('Homepage accessed from:', req.headers.host);
-  res.send(`
-    <h1>Cycle3 Shopify PO Automation</h1>
-    <p>Server is running</p>
-    <p>Current host: ${req.headers.host}</p>
-  `);
+app.post('/webhooks/order/create', async (req, res) => {
+  try {
+    console.log('Order webhook received');
+    const order = req.body;
+    
+    await generatePurchaseOrder(order);
+    
+    res.status(200).send('OK');
+  } catch (error) {
+    console.error('Error processing order webhook:', error);
+    res.status(500).send('Error processing webhook');
+  }
 });
 
-app.listen(port, async () => {
-  console.log('==================================');
+app.get('/', (req, res) => {
+  res.send('Cycle3 Shopify PO Automation Running');
+});
+
+app.listen(port, () => {
   console.log(`Server running on port ${port}`);
-  console.log('Current environment:');
-  console.log('HOST:', process.env.HOST);
-  console.log('Server URL:', `http://localhost:${port}`);
-  console.log('==================================');
-  
-  try {
-    await setupWebhooks();
-    console.log('Webhooks configured successfully');
-  } catch (error) {
-    console.error('Error configuring webhooks:', error);
-  }
 });
