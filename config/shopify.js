@@ -1,7 +1,6 @@
 import '@shopify/shopify-api/adapters/node';
 import { shopifyApi, LATEST_API_VERSION } from '@shopify/shopify-api';
 
-// Shopify API configuration
 const shopify = shopifyApi({
   apiKey: process.env.SHOPIFY_API_KEY,
   apiSecretKey: process.env.SHOPIFY_API_SECRET,
@@ -11,11 +10,12 @@ const shopify = shopifyApi({
   isEmbeddedApp: true,
 });
 
-// Function to generate PO from order
 async function generatePurchaseOrder(order) {
   try {
+    // Extract order details
     const { line_items, shipping_address, order_number } = order;
     
+    // Create PO structure
     const purchaseOrder = {
       poNumber: `PO-${order_number}`,
       items: line_items.map(item => ({
@@ -28,7 +28,9 @@ async function generatePurchaseOrder(order) {
       createdAt: new Date().toISOString()
     };
 
+    // Store PO details in Shopify metafields
     await createMetafield(order.id, purchaseOrder);
+    
     console.log('Purchase Order generated:', purchaseOrder.poNumber);
     return purchaseOrder;
   } catch (error) {
@@ -37,7 +39,6 @@ async function generatePurchaseOrder(order) {
   }
 }
 
-// Function to store PO in Shopify metafields
 async function createMetafield(orderId, purchaseOrder) {
   const client = new shopify.clients.Rest({
     session: {
@@ -59,40 +60,5 @@ async function createMetafield(orderId, purchaseOrder) {
   });
 }
 
-// Function to setup webhooks
-async function setupWebhooks() {
-  if (!process.env.HOST) {
-    console.error('HOST environment variable is not set');
-    return;
-  }
+export { shopify as default, generatePurchaseOrder };
 
-  console.log('Setting up webhook with URL:', `${process.env.HOST}/webhooks/order/create`);
-  
-  const client = new shopify.clients.Rest({
-    session: {
-      shop: process.env.SHOPIFY_SHOP_NAME,
-      accessToken: process.env.SHOPIFY_ACCESS_TOKEN
-    }
-  });
-
-  try {
-    const response = await client.post({
-      path: 'webhooks',
-      data: {
-        webhook: {
-          topic: 'orders/create',
-          address: `${process.env.HOST}/webhooks/order/create`,
-          format: 'json'
-        }
-      }
-    });
-    
-    console.log('Webhook registration response:', response);
-    console.log('Webhook registered successfully');
-  } catch (error) {
-    console.error('Error registering webhook:', error.response?.body);
-    throw error;
-  }
-}
-
-export { shopify as default, generatePurchaseOrder, setupWebhooks };
