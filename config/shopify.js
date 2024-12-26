@@ -12,10 +12,8 @@ const shopify = shopifyApi({
 
 async function generatePurchaseOrder(order) {
   try {
-    // Extract order details
     const { line_items, shipping_address, order_number } = order;
     
-    // Create PO structure
     const purchaseOrder = {
       poNumber: `PO-${order_number}`,
       items: line_items.map(item => ({
@@ -28,7 +26,6 @@ async function generatePurchaseOrder(order) {
       createdAt: new Date().toISOString()
     };
 
-    // Store PO details in Shopify metafields
     await createMetafield(order.id, purchaseOrder);
     
     console.log('Purchase Order generated:', purchaseOrder.poNumber);
@@ -61,4 +58,3 @@ async function createMetafield(orderId, purchaseOrder) {
 }
 
 export { shopify as default, generatePurchaseOrder };
-
