@@ -3,13 +3,8 @@ import dotenv from 'dotenv';
 import cors from 'cors';
 import connectDB from '../config/database.js';
 import { generatePurchaseOrders } from './services/po-generator.js';
-import supplierRoutes from './routes/suppliers.js';
-import webhookRoutes from './routes/webhooks.js';
 
 dotenv.config();
-
-// Connect to MongoDB
-connectDB();
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -17,23 +12,19 @@ const port = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 
-// Routes
-app.use('/api/suppliers', supplierRoutes);
-app.use('/webhooks', webhookRoutes);
+// Health check endpoint
+app.get('/', (req, res) => {
+  res.status(200).json({ status: 'healthy', message: 'Multi-Supplier Management App Running' });
+});
 
+// Webhook endpoint
 app.post('/webhooks/order/create', async (req, res) => {
   try {
     console.log('Order webhook received');
     const order = req.body;
     
     const purchaseOrders = await generatePurchaseOrders(order);
-    
-    // Notify merchant if any POs need approval
-    const needsApproval = purchaseOrders.some(po => po.approvalRequired);
-    if (needsApproval) {
-      // TODO: Implement merchant notification
-      console.log('POs pending approval:', purchaseOrders.map(po => po.poNumber));
-    }
+    console.log('Generated POs:', purchaseOrders.map(po => po.poNumber));
     
     res.status(200).send('OK');
   } catch (error) {
@@ -42,10 +33,27 @@ app.post('/webhooks/order/create', async (req, res) => {
   }
 });
 
-app.get('/', (req, res) => {
-  res.send('Multi-Supplier Management App Running');
+// Initialize the server
+const startServer = async () => {
+  try {
+    // Connect to MongoDB
+    await connectDB();
+    
+    // Start listening
+    app.listen(port, () => {
+      console.log(`Server running on port ${port}`);
+    });
+  } catch (error) {
+    console.error('Failed to start server:', error);
+    process.exit(1);
+  }
+};
+
+// Handle errors
+process.on('unhandledRejection', (err) => {
+  console.error('Unhandled promise rejection:', err);
+  // Don't exit the process, just log the error
 });
 
-app.listen(port, () => {
-  console.log(`Server running on port ${port}`);
-});
+// Start the server
+startServer();
