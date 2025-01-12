@@ -1,11 +1,11 @@
 [build]
 builder = "NIXPACKS"
-buildCommand = "npm install"
 
 [deploy]
 startCommand = "npm start"
 healthcheckPath = "/"
 healthcheckTimeout = 100
+restartPolicyType = "ON_FAILURE"
 
-[env]
-NODE_ENV = "production"
+[service]
+internal_port = 8080
