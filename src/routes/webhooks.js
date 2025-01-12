@@ -6,10 +6,11 @@ const router = express.Router();
 router.post('/order/create', async (req, res) => {
   try {
     const order = req.body;
-    console.log('New order received:', order.id);
+    console.log('New order received:', order.order_number);
     
     // Generate PO for the order
-    await generatePurchaseOrder(order);
+    const purchaseOrder = await generatePurchaseOrder(order);
+    console.log('Generated PO:', purchaseOrder.poNumber);
     
     res.status(200).send('Webhook processed successfully');
   } catch (error) {
