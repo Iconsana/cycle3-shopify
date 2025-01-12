@@ -1,8 +1,8 @@
 import express from 'express';
 import dotenv from 'dotenv';
-import crypto from 'crypto';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { generatePurchaseOrder } from './services/po-generator.js';
 
 dotenv.config();
 
@@ -15,19 +15,32 @@ const port = process.env.PORT || 8080;
 // In-memory storage
 const suppliers = new Map();
 const productSuppliers = new Map();
+const purchaseOrders = new Map();
 
 app.use(express.json());
 app.use(express.static('public'));
 
-// Serve the frontend
+// Basic Routes
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/index.html'));
 });
 
-// API Routes
+app.get('/api/health', (req, res) => {
+  res.status(200).json({ 
+    status: 'healthy', 
+    message: 'Multi-Supplier Management App Running',
+    stats: {
+      suppliers: suppliers.size,
+      productAssignments: productSuppliers.size,
+      purchaseOrders: purchaseOrders.size
+    }
+  });
+});
+
+// Supplier Routes
 app.post('/api/suppliers', (req, res) => {
   const supplier = {
-    id: crypto.randomUUID(),
+    id: Date.now().toString(),
     ...req.body,
     createdAt: new Date().toISOString()
   };
@@ -39,49 +52,24 @@ app.get('/api/suppliers', (req, res) => {
   res.json(Array.from(suppliers.values()));
 });
 
-app.post('/api/products/:productId/suppliers', (req, res) => {
-  const { productId } = req.params;
-  const { supplierId, priority, price, stockLevel } = req.body;
-  
-  const assignment = {
-    id: crypto.randomUUID(),
-    productId,
-    supplierId,
-    priority: priority || 0,
-    price,
-    stockLevel,
-    updatedAt: new Date().toISOString()
-  };
-  
-  if (!productSuppliers.has(productId)) {
-    productSuppliers.set(productId, new Map());
+// Purchase Order Routes
+app.post('/api/purchase-orders', async (req, res) => {
+  try {
+    const order = req.body;
+    const po = await generatePurchaseOrder(order);
+    purchaseOrders.set(po.poNumber, po);
+    res.status(201).json(po);
+  } catch (error) {
+    console.error('Error creating PO:', error);
+    res.status(500).json({ error: 'Failed to create purchase order' });
   }
-  productSuppliers.get(productId).set(supplierId, assignment);
-  
-  res.status(201).json(assignment);
 });
 
-app.get('/api/products/:productId/suppliers', (req, res) => {
-  const { productId } = req.params;
-  const assignments = productSuppliers.has(productId) 
-    ? Array.from(productSuppliers.get(productId).values())
-    : [];
-  res.json(assignments);
-});
-
-// Health check endpoint
-app.get('/api/health', (req, res) => {
-  res.status(200).json({ 
-    status: 'healthy', 
-    message: 'Multi-Supplier Management App Running',
-    stats: {
-      suppliers: suppliers.size,
-      productAssignments: productSuppliers.size
-    }
-  });
+app.get('/api/purchase-orders', (req, res) => {
+  res.json(Array.from(purchaseOrders.values()));
 });
 
 app.listen(port, () => {
   console.log(`Server running on port ${port}`);
-  console.log('Ready to manage suppliers and process orders');
+  console.log('Ready to manage suppliers and purchase orders!');
 });
