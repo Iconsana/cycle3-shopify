@@ -8,7 +8,7 @@
 </head>
 <body class="bg-gray-100">
     <div class="container mx-auto px-4 py-8">
-        <h1 class="text-3xl font-bold mb-8">Supplier Management System</h1>
+        <h1 class="text-3xl font-bold mb-8">Supplier Management</h1>
         
         <!-- Add Supplier Form -->
         <div class="bg-white p-6 rounded-lg shadow-md mb-8">
@@ -35,9 +35,7 @@
         <!-- Suppliers List -->
         <div class="bg-white p-6 rounded-lg shadow-md">
             <h2 class="text-xl font-semibold mb-4">Current Suppliers</h2>
-            <div id="suppliersList" class="space-y-4">
-                <!-- Suppliers will be listed here -->
-            </div>
+            <div id="suppliersList" class="space-y-4"></div>
         </div>
     </div>
 
@@ -55,9 +53,7 @@
             try {
                 const response = await fetch('/api/suppliers', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(data)
                 });
                 
@@ -76,8 +72,7 @@
                 const response = await fetch('/api/suppliers');
                 const suppliers = await response.json();
                 
-                const suppliersList = document.getElementById('suppliersList');
-                suppliersList.innerHTML = suppliers.map(supplier => `
+                document.getElementById('suppliersList').innerHTML = suppliers.map(supplier => `
                     <div class="border p-4 rounded">
                         <h3 class="font-semibold">${supplier.name}</h3>
                         <p class="text-gray-600">${supplier.email}</p>
