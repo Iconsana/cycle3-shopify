@@ -1,11 +1,5 @@
 import express from 'express';
 import dotenv from 'dotenv';
-import path from 'path';
-import { fileURLToPath } from 'url';
-import webhookRoutes from './routes/webhooks.js';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 dotenv.config();
 
@@ -17,17 +11,16 @@ const suppliers = new Map();
 const purchaseOrders = new Map();
 
 app.use(express.json());
-app.use(express.static('public'));
 
-// Mount webhook routes
-app.use('/webhooks', webhookRoutes);
-
-// Basic Routes
+// Health check endpoint (MUST be before static files)
 app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, '../public/index.html'));
+  res.status(200).json({ 
+    status: 'healthy',
+    message: 'Supplier Management App Running'
+  });
 });
 
-// Supplier Routes
+// API Routes
 app.post('/api/suppliers', (req, res) => {
   const supplier = {
     id: Date.now().toString(),
@@ -42,19 +35,18 @@ app.get('/api/suppliers', (req, res) => {
   res.json(Array.from(suppliers.values()));
 });
 
-// Status endpoint
-app.get('/api/health', (req, res) => {
-  res.json({
-    status: 'healthy',
-    features: {
-      suppliers: suppliers.size,
-      purchaseOrders: purchaseOrders.size,
-      webhooks: 'enabled'
-    }
-  });
+// Webhook endpoint
+app.post('/webhooks/order/create', async (req, res) => {
+  try {
+    const order = req.body;
+    console.log('New order received:', order.order_number);
+    res.status(200).send('OK');
+  } catch (error) {
+    console.error('Error:', error);
+    res.status(500).send('Error processing webhook');
+  }
 });
 
 app.listen(port, () => {
   console.log(`Server running on port ${port}`);
-  console.log('Webhooks configured for order processing');
 });
