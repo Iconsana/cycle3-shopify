@@ -1,6 +1,7 @@
 import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import shopify from '@shopify/shopify-api';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -42,90 +43,97 @@ app.get('/api/suppliers', (req, res) => {
 });
 
 // Product-Supplier Management
-app.post('/api/products/:productId/suppliers', (req, res) => {
-  const { productId } = req.params;
-  const { supplierId, priority, price, stockLevel } = req.body;
-  
-  if (!suppliers.has(supplierId)) {
-    return res.status(404).json({ error: 'Supplier not found' });
-  }
-
-  const assignment = {
-    id: Date.now().toString(),
-    productId,
-    supplierId,
-    priority: priority || 0,
-    price,
-    stockLevel,
-    updatedAt: new Date().toISOString()
-  };
-
-  if (!productSuppliers.has(productId)) {
-    productSuppliers.set(productId, new Map());
-  }
-  productSuppliers.get(productId).set(supplierId, assignment);
-  
-  res.status(201).json(assignment);
-});
-
-app.get('/api/products/:productId/suppliers', (req, res) => {
-  const { productId } = req.params;
-  const assignments = productSuppliers.has(productId) 
-    ? Array.from(productSuppliers.get(productId).values())
-    : [];
-  res.json(assignments);
-});
-
-// Purchase Order Management
-app.post('/api/purchase-orders', (req, res) => {
-  const { orderId, items } = req.body;
-  
-  // Group items by supplier based on priority and stock
-  const posBySupplier = new Map();
-  
-  for (const item of items) {
-    const productSupplierList = productSuppliers.get(item.productId);
-    if (!productSupplierList) {
-      continue;
+app.post('/api/products/:productId/suppliers', async (req, res) => {
+  try {
+    const { productId } = req.params;
+    const { supplierId, priority, price, stockLevel } = req.body;
+    
+    if (!suppliers.has(supplierId)) {
+      return res.status(404).json({ error: 'Supplier not found' });
     }
-    
-    // Find best supplier (highest priority with stock)
-    const assignments = Array.from(productSupplierList.values())
-      .sort((a, b) => b.priority - a.priority);
-    
-    const supplier = assignments.find(s => s.stockLevel >= item.quantity)
-      || assignments[0]; // Fallback to highest priority if none have stock
-      
-    if (!posBySupplier.has(supplier.supplierId)) {
-      posBySupplier.set(supplier.supplierId, {
-        poNumber: `PO-${orderId}-${supplier.supplierId.slice(0,4)}`,
-        supplierId: supplier.supplierId,
-        status: 'pending_approval',
-        items: [],
-        createdAt: new Date().toISOString()
-      });
+
+    const assignment = {
+      id: Date.now().toString(),
+      productId,
+      supplierId,
+      priority: priority || 0,
+      price,
+      stockLevel,
+      updatedAt: new Date().toISOString()
+    };
+
+    // Store in our app's data
+    if (!productSuppliers.has(productId)) {
+      productSuppliers.set(productId, new Map());
     }
-    
-    posBySupplier.get(supplier.supplierId).items.push({
-      ...item,
-      supplierPrice: supplier.price
+    productSuppliers.get(productId).set(supplierId, assignment);
+
+    // Store in Shopify metafields
+    const client = new shopify.clients.Rest({
+      session: {
+        shop: process.env.SHOPIFY_SHOP_NAME,
+        accessToken: process.env.SHOPIFY_ACCESS_TOKEN
+      }
     });
+
+    await client.post({
+      path: `products/${productId}/metafields`,
+      data: {
+        metafield: {
+          namespace: 'suppliers',
+          key: `supplier_${supplierId}`,
+          value: JSON.stringify(assignment),
+          type: 'json'
+        }
+      }
+    });
+    
+    res.status(201).json(assignment);
+  } catch (error) {
+    console.error('Error assigning supplier:', error);
+    res.status(500).json({ error: 'Failed to assign supplier' });
   }
-  
-  // Save POs
-  const purchaseOrders = Array.from(posBySupplier.values());
-  purchaseOrders.forEach(po => {
-    purchaseOrders.set(po.poNumber, po);
-  });
-  
-  res.status(201).json(purchaseOrders);
 });
 
-app.get('/api/purchase-orders', (req, res) => {
-  res.json(Array.from(purchaseOrders.values()));
+app.get('/api/products/:productId/suppliers', async (req, res) => {
+  try {
+    const { productId } = req.params;
+    
+    // Get suppliers from our app's data
+    const appSuppliers = productSuppliers.has(productId) 
+      ? Array.from(productSuppliers.get(productId).values())
+      : [];
+
+    // Get suppliers from Shopify metafields
+    const client = new shopify.clients.Rest({
+      session: {
+        shop: process.env.SHOPIFY_SHOP_NAME,
+        accessToken: process.env.SHOPIFY_ACCESS_TOKEN
+      }
+    });
+
+    const metafields = await client.get({
+      path: `products/${productId}/metafields`
+    });
+
+    // Combine and deduplicate suppliers
+    const allSuppliers = [...appSuppliers];
+    for (const metafield of metafields.data) {
+      if (metafield.namespace === 'suppliers') {
+        const supplierData = JSON.parse(metafield.value);
+        if (!allSuppliers.find(s => s.id === supplierData.id)) {
+          allSuppliers.push(supplierData);
+        }
+      }
+    }
+
+    res.json(allSuppliers);
+  } catch (error) {
+    console.error('Error fetching suppliers:', error);
+    res.status(500).json({ error: 'Failed to fetch suppliers' });
+  }
 });
 
-// Start server
 app.listen(port, () => {
   console.log(`Server running on port ${port}`);
 });
