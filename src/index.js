@@ -1,6 +1,7 @@
 import express from 'express';
 import dotenv from 'dotenv';
 import crypto from 'crypto';
+import { connectDB } from './database.js';
 
 dotenv.config();
 
@@ -8,6 +9,12 @@ const app = express();
 const port = process.env.PORT || 8080;
 
 app.use(express.json());
+
+// Initialize database connection
+let dbConnected = false;
+connectDB().then(connected => {
+  dbConnected = connected;
+});
 
 // Shopify webhook verification middleware
 const verifyShopifyWebhook = (req, res, next) => {
@@ -51,7 +58,8 @@ app.get('/', (req, res) => {
     message: 'Multi-Supplier Management App Running',
     features: {
       webhooks: 'enabled',
-      shopify: process.env.SHOPIFY_API_SECRET ? 'configured' : 'not configured'
+      shopify: process.env.SHOPIFY_API_SECRET ? 'configured' : 'not configured',
+      database: dbConnected ? 'connected' : 'not connected'
     }
   });
 });
@@ -81,11 +89,13 @@ app.get('/api/status', (req, res) => {
   res.json({
     server: 'running',
     timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV || 'development'
+    environment: process.env.NODE_ENV || 'development',
+    database: dbConnected ? 'connected' : 'not connected'
   });
 });
 
 app.listen(port, () => {
   console.log(`Server running on port ${port}`);
   console.log('Shopify webhooks:', process.env.SHOPIFY_API_SECRET ? 'Configured' : 'Not configured');
+  console.log('Database:', process.env.MONGODB_URI ? 'URI configured' : 'URI not configured');
 });
