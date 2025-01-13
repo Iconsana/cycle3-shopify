@@ -1,5 +1,6 @@
 import express from 'express';
 import dotenv from 'dotenv';
+import '@shopify/shopify-api/adapters/node';
 import { shopifyApi, LATEST_API_VERSION } from '@shopify/shopify-api';
 
 dotenv.config();
@@ -7,11 +8,11 @@ dotenv.config();
 const app = express();
 const port = process.env.PORT || 10000;
 
-// Initialize Shopify API
+// Initialize Shopify API with Node adapter
 const shopify = shopifyApi({
   apiKey: process.env.SHOPIFY_API_KEY,
   apiSecretKey: process.env.SHOPIFY_API_SECRET,
-  scopes: ['read_products', 'write_products', 'read_orders', 'write_orders'],
+  scopes: ['read_products', 'write_products'],
   hostName: process.env.SHOPIFY_SHOP_NAME.replace('.myshopify.com', ''),
   apiVersion: LATEST_API_VERSION,
   isEmbeddedApp: true,
@@ -56,15 +57,12 @@ app.get('/test-connection', async (req, res) => {
       });
 
       results.adminAPI = true;
-      results.details.adminAPI = {
-        shopName: response.body.shop.name,
-        domain: response.body.shop.domain
-      };
+      results.details.adminAPI = response.body.shop;
     } catch (error) {
       results.details.adminAPI = { error: error.message };
     }
 
-    // Test Storefront API
+    // Test Storefront API with simplified query
     try {
       const response = await fetch(
         `https://${process.env.SHOPIFY_SHOP_NAME}/api/2024-01/graphql.json`,
@@ -85,14 +83,13 @@ app.get('/test-connection', async (req, res) => {
       );
 
       const data = await response.json();
+      
       if (data.errors) {
         throw new Error(data.errors[0].message);
       }
 
       results.storefrontAPI = true;
-      results.details.storefrontAPI = {
-        shopName: data.data.shop.name
-      };
+      results.details.storefrontAPI = data.data;
     } catch (error) {
       results.details.storefrontAPI = { error: error.message };
     }
