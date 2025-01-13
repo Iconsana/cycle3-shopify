@@ -1,22 +1,23 @@
 import express from 'express';
 import dotenv from 'dotenv';
-import path from 'path';
-import { fileURLToPath } from 'url';
-import shopify from '@shopify/shopify-api';
+import { shopifyApi, LATEST_API_VERSION } from '@shopify/shopify-api';
 
 dotenv.config();
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 const app = express();
 const port = process.env.PORT || 10000;
 
-// In-memory storage for demo (will be replaced by metaobjects)
-const purchaseOrders = new Map();
+// Initialize Shopify API
+const shopify = shopifyApi({
+  apiKey: process.env.SHOPIFY_API_KEY,
+  apiSecretKey: process.env.SHOPIFY_API_SECRET,
+  scopes: ['read_products', 'write_products', 'read_orders', 'write_orders'],
+  hostName: process.env.SHOPIFY_SHOP_NAME.replace('.myshopify.com', ''),
+  apiVersion: LATEST_API_VERSION,
+  isEmbeddedApp: true,
+});
 
 app.use(express.json());
-app.use(express.static('public'));
 
 // Basic health check
 app.get('/', (req, res) => {
@@ -43,30 +44,21 @@ app.get('/test-connection', async (req, res) => {
 
     // Test Admin API
     try {
-      const client = new shopify.clients.Graphql({
+      const client = new shopify.clients.Rest({
         session: {
           shop: process.env.SHOPIFY_SHOP_NAME,
           accessToken: process.env.SHOPIFY_ACCESS_TOKEN
         }
       });
 
-      const response = await client.query({
-        data: {
-          query: `{
-            shop {
-              name
-              primaryDomain {
-                url
-              }
-            }
-          }`
-        }
+      const response = await client.get({
+        path: 'shop'
       });
 
       results.adminAPI = true;
       results.details.adminAPI = {
-        shopName: response.body.data.shop.name,
-        domain: response.body.data.shop.primaryDomain.url
+        shopName: response.body.shop.name,
+        domain: response.body.shop.domain
       };
     } catch (error) {
       results.details.adminAPI = { error: error.message };
@@ -86,13 +78,6 @@ app.get('/test-connection', async (req, res) => {
             query: `{
               shop {
                 name
-                products(first: 1) {
-                  edges {
-                    node {
-                      title
-                    }
-                  }
-                }
               }
             }`
           })
@@ -106,8 +91,7 @@ app.get('/test-connection', async (req, res) => {
 
       results.storefrontAPI = true;
       results.details.storefrontAPI = {
-        shopName: data.data.shop.name,
-        firstProduct: data.data.shop.products.edges[0]?.node.title || 'No products found'
+        shopName: data.data.shop.name
       };
     } catch (error) {
       results.details.storefrontAPI = { error: error.message };
@@ -115,110 +99,10 @@ app.get('/test-connection', async (req, res) => {
 
     res.json(results);
   } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// Supplier Management with Metaobjects
-app.post('/api/suppliers', async (req, res) => {
-  try {
-    const client = new shopify.clients.Graphql({
-      session: {
-        shop: process.env.SHOPIFY_SHOP_NAME,
-        accessToken: process.env.SHOPIFY_ACCESS_TOKEN
-      }
+    res.status(500).json({ 
+      error: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
-
-    const { name, email, leadTime } = req.body;
-    
-    const response = await client.query({
-      data: {
-        query: `
-          mutation CreateSupplier($input: MetaobjectCreateInput!) {
-            metaobjectCreate(metaobject: $input) {
-              metaobject {
-                id
-                handle
-                fields {
-                  key
-                  value
-                }
-              }
-              userErrors {
-                field
-                message
-              }
-            }
-          }
-        `,
-        variables: {
-          input: {
-            type: "supplier",
-            fields: [
-              { key: "name", value: name },
-              { key: "email", value: email },
-              { key: "lead_time", value: leadTime.toString() },
-              { key: "status", value: "active" }
-            ]
-          }
-        }
-      }
-    });
-
-    res.status(201).json(response.body.data.metaobjectCreate.metaobject);
-  } catch (error) {
-    console.error('Error creating supplier:', error);
-    res.status(500).json({ error: 'Failed to create supplier' });
-  }
-});
-
-app.get('/api/suppliers', async (req, res) => {
-  try {
-    const client = new shopify.clients.Graphql({
-      session: {
-        shop: process.env.SHOPIFY_SHOP_NAME,
-        accessToken: process.env.SHOPIFY_ACCESS_TOKEN
-      }
-    });
-
-    const response = await client.query({
-      data: {
-        query: `
-          {
-            metaobjects(type: "supplier", first: 100) {
-              edges {
-                node {
-                  id
-                  handle
-                  fields {
-                    key
-                    value
-                  }
-                }
-              }
-            }
-          }
-        `
-      }
-    });
-
-    const suppliers = response.body.data.metaobjects.edges.map(edge => {
-      const fields = edge.node.fields.reduce((acc, field) => {
-        acc[field.key] = field.value;
-        return acc;
-      }, {});
-
-      return {
-        id: edge.node.id,
-        handle: edge.node.handle,
-        ...fields
-      };
-    });
-
-    res.json(suppliers);
-  } catch (error) {
-    console.error('Error fetching suppliers:', error);
-    res.status(500).json({ error: 'Failed to fetch suppliers' });
   }
 });
 
