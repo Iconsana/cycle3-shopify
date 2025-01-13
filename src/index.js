@@ -2,6 +2,7 @@ import express from 'express';
 import dotenv from 'dotenv';
 import '@shopify/shopify-api/adapters/node';
 import { shopifyApi, LATEST_API_VERSION } from '@shopify/shopify-api';
+import { getProductSuppliers, addProductSupplier, updateProductSupplier } from './api/productSuppliers.js';
 
 dotenv.config();
 
@@ -20,95 +21,36 @@ const shopify = shopifyApi({
 
 app.use(express.json());
 
-// Basic health check
-app.get('/', (req, res) => {
-  res.status(200).json({ 
-    status: 'healthy',
-    message: 'Multi-Supplier Management App Running'
-  });
-});
-
-// Connection test endpoint
-app.get('/test-connection', async (req, res) => {
+// Product Supplier Routes
+app.get('/api/products/:productId/suppliers', async (req, res) => {
   try {
-    const results = {
-      adminAPI: false,
-      storefrontAPI: false,
-      details: {},
-      environment: {
-        hasAdminToken: !!process.env.SHOPIFY_ACCESS_TOKEN,
-        hasApiKey: !!process.env.SHOPIFY_API_KEY,
-        hasStorefrontToken: !!process.env.SHOPIFY_STOREFRONT_TOKEN,
-        hasShopName: !!process.env.SHOPIFY_SHOP_NAME
-      }
-    };
-
-    // Test Admin API
-    try {
-      const client = new shopify.clients.Rest({
-        session: {
-          shop: process.env.SHOPIFY_SHOP_NAME,
-          accessToken: process.env.SHOPIFY_ACCESS_TOKEN
-        }
-      });
-
-      const response = await client.get({
-        path: 'shop'
-      });
-
-      results.adminAPI = true;
-      results.details.adminAPI = response.body.shop;
-    } catch (error) {
-      results.details.adminAPI = { error: error.message };
-    }
-
-    // Test Storefront API with simplified query
-    try {
-      const response = await fetch(
-        `https://${process.env.SHOPIFY_SHOP_NAME}/api/2024-01/graphql.json`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-Shopify-Storefront-Access-Token': process.env.SHOPIFY_STOREFRONT_TOKEN
-          },
-          body: JSON.stringify({
-            query: `{
-              shop {
-                name
-              }
-            }`
-          })
-        }
-      );
-
-      const data = await response.json();
-      
-      if (data.errors) {
-        throw new Error(data.errors[0].message);
-      }
-
-      results.storefrontAPI = true;
-      results.details.storefrontAPI = data.data;
-    } catch (error) {
-      results.details.storefrontAPI = { error: error.message };
-    }
-
-    res.json(results);
+    const suppliers = await getProductSuppliers(req.params.productId);
+    res.json(suppliers);
   } catch (error) {
-    res.status(500).json({ 
-      error: error.message,
-      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
-    });
+    res.status(500).json({ error: error.message });
   }
 });
 
+app.post('/api/products/:productId/suppliers', async (req, res) => {
+  try {
+    const supplier = await addProductSupplier(req.params.productId, req.body);
+    res.status(201).json(supplier);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.put('/api/products/:productId/suppliers/:supplierId', async (req, res) => {
+  try {
+    const supplier = await updateProductSupplier(req.params.supplierId, req.body);
+    res.json(supplier);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Health check endpoint stays the same...
+
 app.listen(port, () => {
   console.log(`Server running on port ${port}`);
-  console.log('Environment check:', {
-    hasAdminToken: !!process.env.SHOPIFY_ACCESS_TOKEN,
-    hasApiKey: !!process.env.SHOPIFY_API_KEY,
-    hasStorefrontToken: !!process.env.SHOPIFY_STOREFRONT_TOKEN,
-    hasShopName: !!process.env.SHOPIFY_SHOP_NAME
-  });
 });
