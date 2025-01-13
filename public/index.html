@@ -8,7 +8,7 @@
 </head>
 <body class="bg-gray-100">
     <div class="container mx-auto px-4 py-8">
-        <h1 class="text-3xl font-bold mb-8">Multi-Supplier Management</h1>
+        <h1 class="text-3xl font-bold mb-8">Supplier Management</h1>
         
         <!-- Add Supplier Form -->
         <div class="bg-white p-6 rounded-lg shadow-md mb-8">
@@ -67,9 +67,7 @@
         <!-- Suppliers List -->
         <div class="bg-white p-6 rounded-lg shadow-md">
             <h2 class="text-xl font-semibold mb-4">Current Suppliers</h2>
-            <div id="suppliersList" class="space-y-4">
-                <!-- Suppliers will be listed here -->
-            </div>
+            <div id="suppliersList" class="space-y-4"></div>
         </div>
     </div>
 
@@ -122,51 +120,3 @@
                 
                 if (response.ok) {
                     e.target.reset();
-                    alert('Supplier assigned to product successfully!');
-                }
-            } catch (error) {
-                console.error('Error assigning supplier:', error);
-            }
-        });
-
-        // Load and display suppliers
-        async function loadSuppliers() {
-            try {
-                const response = await fetch('/api/suppliers');
-                const suppliers = await response.json();
-                
-                document.getElementById('suppliersList').innerHTML = suppliers.map(supplier => `
-                    <div class="border p-4 rounded">
-                        <h3 class="font-semibold">${supplier.name}</h3>
-                        <p class="text-gray-600">${supplier.email}</p>
-                        <p class="text-sm">Lead Time: ${supplier.leadTime} days</p>
-                        <p class="text-xs text-gray-500">ID: ${supplier.id}</p>
-                    </div>
-                `).join('');
-            } catch (error) {
-                console.error('Error loading suppliers:', error);
-            }
-        }
-
-        // Update supplier select dropdown
-        async function updateSupplierSelect() {
-            try {
-                const response = await fetch('/api/suppliers');
-                const suppliers = await response.json();
-                
-                const select = document.querySelector('select[name="supplierId"]');
-                select.innerHTML = '<option value="">Select a supplier</option>' + 
-                    suppliers.map(supplier => `
-                        <option value="${supplier.id}">${supplier.name}</option>
-                    `).join('');
-            } catch (error) {
-                console.error('Error updating supplier select:', error);
-            }
-        }
-
-        // Initial load
-        loadSuppliers();
-        updateSupplierSelect();
-    </script>
-</body>
-</html>
