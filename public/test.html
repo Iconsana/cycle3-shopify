@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Product Supplier Testing</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 p-8">
+    <div class="max-w-4xl mx-auto">
+        <h1 class="text-2xl font-bold mb-6">Product Supplier Testing</h1>
+
+        <!-- Test Form -->
+        <div class="bg-white p-6 rounded-lg shadow mb-6">
+            <h2 class="text-xl font-semibold mb-4">Test Product-Supplier Operations</h2>
+            
+            <div class="mb-6">
+                <label class="block text-sm font-medium mb-2">Product ID</label>
+                <input type="text" id="productId" class="w-full p-2 border rounded" 
+                       placeholder="Enter Shopify Product ID">
+            </div>
+
+            <div class="grid grid-cols-2 gap-4 mb-4">
+                <button onclick="getSuppliers()" 
+                        class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
+                    Get Suppliers
+                </button>
+                
+                <button onclick="showAddSupplierForm()" 
+                        class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600">
+                    Add Supplier
+                </button>
+            </div>
+        </div>
+
+        <!-- Add Supplier Form (Hidden by default) -->
+        <div id="addSupplierForm" class="bg-white p-6 rounded-lg shadow mb-6 hidden">
+            <h2 class="text-xl font-semibold mb-4">Add New Supplier</h2>
+            <form onsubmit="addSupplier(event)" class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium mb-2">Supplier ID</label>
+                    <input type="text" id="supplierId" class="w-full p-2 border rounded" required>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-2">Priority (0-10)</label>
+                    <input type="number" id="priority" min="0" max="10" class="w-full p-2 border rounded" required>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-2">Price</label>
+                    <input type="number" id="price" step="0.01" class="w-full p-2 border rounded" required>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-2">Stock Level</label>
+                    <input type="number" id="stockLevel" class="w-full p-2 border rounded" required>
+                </div>
+                <button type="submit" class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600">
+                    Add Supplier
+                </button>
+            </form>
+        </div>
+
+        <!-- Results Section -->
+        <div class="bg-white p-6 rounded-lg shadow">
+            <h2 class="text-xl font-semibold mb-4">Results</h2>
+            <pre id="results" class="bg-gray-100 p-4 rounded overflow-x-auto">No results yet</pre>
+        </div>
+    </div>
+
+    <script>
+        function showResults(data) {
+            document.getElementById('results').innerText = 
+                typeof data === 'string' ? data : JSON.stringify(data, null, 2);
+        }
+
+        function showAddSupplierForm() {
+            document.getElementById('addSupplierForm').classList.remove('hidden');
+        }
+
+        async function getSuppliers() {
+            const productId = document.getElementById('productId').value;
+            if (!productId) {
+                showResults('Please enter a Product ID');
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/products/${productId}/suppliers`);
+                const data = await response.json();
+                showResults(data);
+            } catch (error) {
+                showResults(`Error: ${error.message}`);
+            }
+        }
+
+        async function addSupplier(event) {
+            event.preventDefault();
+            
+            const productId = document.getElementById('productId').value;
+            if (!productId) {
+                showResults('Please enter a Product ID');
+                return;
+            }
+
+            const supplierData = {
+                supplierId: document.getElementById('supplierId').value,
+                priority: parseInt(document.getElementById('priority').value),
+                price: parseFloat(document.getElementById('price').value),
+                stockLevel: parseInt(document.getElementById('stockLevel').value)
+            };
+
+            try {
+                const response = await fetch(`/api/products/${productId}/suppliers`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(supplierData)
+                });
+                
+                const data = await response.json();
+                showResults(data);
+                
+                if (response.ok) {
+                    document.getElementById('addSupplierForm').classList.add('hidden');
+                }
+            } catch (error) {
+                showResults(`Error: ${error.message}`);
+            }
+        }
+    </script>
+</body>
+</html>
