@@ -6,37 +6,64 @@ extend('Admin::Product::SubscriptionPlan::Add', (root) => {
   });
 
   const card = root.createComponent('Card', {
-    title: 'Product Suppliers',
+    title: 'Suppliers',
     sectioned: true,
   });
 
-  const supplierTable = root.createComponent('ResourceList', {
-    items: [],
+  // Supplier List section
+  const supplierList = root.createComponent('ResourceList', {
+    resourceName: { singular: 'supplier', plural: 'suppliers' },
+    loading: false,
     renderItem: (item) => {
+      const { name, priority, price, stockLevel } = item;
+      
       return root.createComponent('ResourceItem', {
         id: item.id,
-        accessibilityLabel: `Supplier ${item.name}`,
+        accessibilityLabel: `Supplier ${name}`,
         children: [
-          root.createComponent('Text', { children: item.name }),
-          root.createComponent('Text', { children: `Priority: ${item.priority}` }),
-          root.createComponent('Text', { children: `Price: ${item.price}` }),
-          root.createComponent('Text', { children: `Stock: ${item.stockLevel}` }),
+          root.createComponent('BlockStack', {
+            spacing: 'tight',
+            children: [
+              root.createComponent('TextBlock', {
+                text: `Name: ${name}`,
+                subdued: false,
+              }),
+              root.createComponent('TextBlock', {
+                text: `Priority: ${priority}`,
+                subdued: true,
+              }),
+              root.createComponent('TextBlock', {
+                text: `Price: ${price}`,
+                subdued: true,
+              }),
+              root.createComponent('TextBlock', {
+                text: `Stock Level: ${stockLevel}`,
+                subdued: true,
+              }),
+            ],
+          }),
         ],
       });
     },
   });
 
+  // Add Supplier Button
   const addButton = root.createComponent('Button', {
     title: 'Add Supplier',
+    primary: true,
     onPress: () => {
-      // Open modal to add supplier
+      // Show add supplier modal
+      console.log('Add supplier clicked');
     },
   });
 
-  card.appendChild(supplierTable);
+  // Add components to card
+  card.appendChild(supplierList);
   card.appendChild(addButton);
+  
+  // Add card to container
   container.appendChild(card);
-  root.appendChild(container);
-
+  
+  // Return the extension
   return root;
 });
