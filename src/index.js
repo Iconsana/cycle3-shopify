@@ -1,23 +1,19 @@
 import express from 'express';
-import path from 'path';
-import { fileURLToPath } from 'url';
+import dotenv from 'dotenv';
 import shopify from '@shopify/shopify-api';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+dotenv.config();
 
 const app = express();
 const port = process.env.PORT || 10000;
 
-// In-memory storage
-const suppliers = new Map();
-const productSuppliers = new Map();
+// In-memory storage for demo (will be replaced by metaobjects)
 const purchaseOrders = new Map();
 
 app.use(express.json());
 app.use(express.static('public'));
 
-// Health check
+// Health check endpoint
 app.get('/', (req, res) => {
   if (req.headers.accept && req.headers.accept.includes('application/json')) {
     res.json({ status: 'healthy' });
@@ -26,69 +22,158 @@ app.get('/', (req, res) => {
   }
 });
 
-// Supplier Management
-app.post('/api/suppliers', (req, res) => {
-  const supplier = {
-    id: Date.now().toString(),
-    ...req.body,
-    createdAt: new Date().toISOString(),
-    status: 'active'
-  };
-  suppliers.set(supplier.id, supplier);
-  res.status(201).json(supplier);
-});
-
-app.get('/api/suppliers', (req, res) => {
-  res.json(Array.from(suppliers.values()));
-});
-
-// Product-Supplier Management
-app.post('/api/products/:productId/suppliers', async (req, res) => {
+// Supplier Management with Metaobjects
+app.post('/api/suppliers', async (req, res) => {
   try {
-    const { productId } = req.params;
-    const { supplierId, priority, price, stockLevel } = req.body;
-    
-    if (!suppliers.has(supplierId)) {
-      return res.status(404).json({ error: 'Supplier not found' });
-    }
-
-    const assignment = {
-      id: Date.now().toString(),
-      productId,
-      supplierId,
-      priority: priority || 0,
-      price,
-      stockLevel,
-      updatedAt: new Date().toISOString()
-    };
-
-    // Store in our app's data
-    if (!productSuppliers.has(productId)) {
-      productSuppliers.set(productId, new Map());
-    }
-    productSuppliers.get(productId).set(supplierId, assignment);
-
-    // Store in Shopify metafields
-    const client = new shopify.clients.Rest({
+    const client = new shopify.clients.Graphql({
       session: {
         shop: process.env.SHOPIFY_SHOP_NAME,
         accessToken: process.env.SHOPIFY_ACCESS_TOKEN
       }
     });
 
-    await client.post({
-      path: `products/${productId}/metafields`,
+    const { name, email, leadTime } = req.body;
+    
+    const response = await client.query({
       data: {
-        metafield: {
-          namespace: 'suppliers',
-          key: `supplier_${supplierId}`,
-          value: JSON.stringify(assignment),
-          type: 'json'
+        query: `
+          mutation CreateSupplier($input: MetaobjectCreateInput!) {
+            metaobjectCreate(metaobject: $input) {
+              metaobject {
+                id
+                handle
+                fields {
+                  key
+                  value
+                }
+              }
+              userErrors {
+                field
+                message
+              }
+            }
+          }
+        `,
+        variables: {
+          input: {
+            type: "supplier",
+            fields: [
+              { key: "name", value: name },
+              { key: "email", value: email },
+              { key: "lead_time", value: leadTime.toString() },
+              { key: "status", value: "active" }
+            ]
+          }
         }
       }
     });
-    
-    res.status(201).json(assignment);
+
+    res.status(201).json(response.body.data.metaobjectCreate.metaobject);
+  } catch (error) {
+    console.error('Error creating supplier:', error);
+    res.status(500).json({ error: 'Failed to create supplier' });
+  }
+});
+
+app.get('/api/suppliers', async (req, res) => {
+  try {
+    const client = new shopify.clients.Graphql({
+      session: {
+        shop: process.env.SHOPIFY_SHOP_NAME,
+        accessToken: process.env.SHOPIFY_ACCESS_TOKEN
+      }
+    });
+
+    const response = await client.query({
+      data: {
+        query: `
+          {
+            metaobjects(type: "supplier", first: 100) {
+              edges {
+                node {
+                  id
+                  handle
+                  fields {
+                    key
+                    value
+                  }
+                }
+              }
+            }
+          }
+        `
+      }
+    });
+
+    const suppliers = response.body.data.metaobjects.edges.map(edge => {
+      const fields = edge.node.fields.reduce((acc, field) => {
+        acc[field.key] = field.value;
+        return acc;
+      }, {});
+
+      return {
+        id: edge.node.id,
+        handle: edge.node.handle,
+        ...fields
+      };
+    });
+
+    res.json(suppliers);
+  } catch (error) {
+    console.error('Error fetching suppliers:', error);
+    res.status(500).json({ error: 'Failed to fetch suppliers' });
+  }
+});
+
+// Product-Supplier Assignment
+app.post('/api/products/:productId/suppliers', async (req, res) => {
+  try {
+    const { productId } = req.params;
+    const { supplierId, priority, price, stockLevel } = req.body;
+
+    const client = new shopify.clients.Graphql({
+      session: {
+        shop: process.env.SHOPIFY_SHOP_NAME,
+        accessToken: process.env.SHOPIFY_ACCESS_TOKEN
+      }
+    });
+
+    const response = await client.query({
+      data: {
+        query: `
+          mutation CreateProductSupplier($input: MetaobjectCreateInput!) {
+            metaobjectCreate(metaobject: $input) {
+              metaobject {
+                id
+                handle
+                fields {
+                  key
+                  value
+                }
+              }
+              userErrors {
+                field
+                message
+              }
+            }
+          }
+        `,
+        variables: {
+          input: {
+            type: "product_supplier",
+            fields: [
+              { key: "product_id", value: productId },
+              { key: "supplier_id", value: supplierId },
+              { key: "priority", value: priority.toString() },
+              { key: "price", value: price.toString() },
+              { key: "stock_level", value: stockLevel.toString() }
+            ]
+          }
+        }
+      }
+    });
+
+    res.status(201).json(response.body.data.metaobjectCreate.metaobject);
   } catch (error) {
     console.error('Error assigning supplier:', error);
     res.status(500).json({ error: 'Failed to assign supplier' });
@@ -99,38 +184,53 @@ app.get('/api/products/:productId/suppliers', async (req, res) => {
   try {
     const { productId } = req.params;
     
-    // Get suppliers from our app's data
-    const appSuppliers = productSuppliers.has(productId) 
-      ? Array.from(productSuppliers.get(productId).values())
-      : [];
-
-    // Get suppliers from Shopify metafields
-    const client = new shopify.clients.Rest({
+    const client = new shopify.clients.Graphql({
       session: {
         shop: process.env.SHOPIFY_SHOP_NAME,
         accessToken: process.env.SHOPIFY_ACCESS_TOKEN
       }
     });
 
-    const metafields = await client.get({
-      path: `products/${productId}/metafields`
+    const response = await client.query({
+      data: {
+        query: `
+          {
+            metaobjects(type: "product_supplier", first: 100) {
+              edges {
+                node {
+                  id
+                  handle
+                  fields {
+                    key
+                    value
+                  }
+                }
+              }
+            }
+          }
+        `
+      }
     });
 
-    // Combine and deduplicate suppliers
-    const allSuppliers = [...appSuppliers];
-    for (const metafield of metafields.data) {
-      if (metafield.namespace === 'suppliers') {
-        const supplierData = JSON.parse(metafield.value);
-        if (!allSuppliers.find(s => s.id === supplierData.id)) {
-          allSuppliers.push(supplierData);
-        }
-      }
-    }
+    const assignments = response.body.data.metaobjects.edges
+      .map(edge => {
+        const fields = edge.node.fields.reduce((acc, field) => {
+          acc[field.key] = field.value;
+          return acc;
+        }, {});
 
-    res.json(allSuppliers);
+        return {
+          id: edge.node.id,
+          handle: edge.node.handle,
+          ...fields
+        };
+      })
+      .filter(assignment => assignment.product_id === productId);
+
+    res.json(assignments);
   } catch (error) {
-    console.error('Error fetching suppliers:', error);
-    res.status(500).json({ error: 'Failed to fetch suppliers' });
+    console.error('Error fetching supplier assignments:', error);
+    res.status(500).json({ error: 'Failed to fetch supplier assignments' });
   }
 });
 
