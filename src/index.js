@@ -28,6 +28,40 @@ app.get('/', (req, res) => {
   });
 });
 
+// Get suppliers for a product
+app.get('/api/products/:productId/suppliers', async (req, res) => {
+  try {
+    const client = new shopify.clients.Rest({
+      session: {
+        shop: process.env.SHOPIFY_SHOP_NAME,
+        accessToken: process.env.SHOPIFY_ACCESS_TOKEN
+      }
+    });
+
+    // First, verify the product exists
+    const productResponse = await client.get({
+      path: `products/${req.params.productId}`
+    });
+
+    // For now, return a test supplier
+    res.json([{
+      id: 'test-supplier-1',
+      name: 'Test Supplier',
+      priority: 1,
+      price: 100.00,
+      stockLevel: 50
+    }]);
+
+  } catch (error) {
+    if (error.statusCode === 404) {
+      res.status(404).json({ error: 'Product not found' });
+    } else {
+      console.error('Error fetching suppliers:', error);
+      res.status(500).json({ error: 'Failed to fetch suppliers' });
+    }
+  }
+});
+
 // Connection test endpoint
 app.get('/test-connection', async (req, res) => {
   try {
