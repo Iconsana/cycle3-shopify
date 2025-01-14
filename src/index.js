@@ -38,26 +38,47 @@ app.get('/api/products/:productId/suppliers', async (req, res) => {
       }
     });
 
-    // First, verify the product exists
-    const productResponse = await client.get({
-      path: `products/${req.params.productId}`
+    // Format product ID for Shopify API
+    const productId = req.params.productId;
+    const formattedProductId = productId.includes('/') ? productId : `gid://shopify/Product/${productId}`;
+
+    // First, verify the product exists using GraphQL
+    const graphqlClient = new shopify.clients.Graphql({
+      session: {
+        shop: process.env.SHOPIFY_SHOP_NAME,
+        accessToken: process.env.SHOPIFY_ACCESS_TOKEN
+      }
     });
 
+    const response = await graphqlClient.query({
+      data: `{
+        product(id: "${formattedProductId}") {
+          id
+          title
+        }
+      }`
+    });
+
+    // If we get here, the product exists
     // For now, return a test supplier
     res.json([{
       id: 'test-supplier-1',
       name: 'Test Supplier',
       priority: 1,
       price: 100.00,
-      stockLevel: 50
+      stockLevel: 50,
+      productId: productId
     }]);
 
   } catch (error) {
-    if (error.statusCode === 404) {
+    console.error('Error details:', error);
+    if (error.response?.code === 404) {
       res.status(404).json({ error: 'Product not found' });
     } else {
-      console.error('Error fetching suppliers:', error);
-      res.status(500).json({ error: 'Failed to fetch suppliers' });
+      res.status(500).json({ 
+        error: 'Failed to fetch suppliers',
+        details: error.message
+      });
     }
   }
 });
