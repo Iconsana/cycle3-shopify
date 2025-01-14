@@ -8,6 +8,9 @@ dotenv.config();
 const app = express();
 const port = process.env.PORT || 10000;
 
+// In-memory storage for MVP testing
+const suppliersByProduct = new Map();
+
 // Initialize Shopify API with Node adapter
 const shopify = shopifyApi({
   apiKey: process.env.SHOPIFY_API_KEY,
@@ -20,37 +23,31 @@ const shopify = shopifyApi({
 
 app.use(express.json());
 
-// Basic health check
-app.get('/', (req, res) => {
-  res.status(200).json({ 
-    status: 'healthy',
-    message: 'Multi-Supplier Management App Running'
-  });
-});
-
-// Get suppliers for a product
-app.get('/api/products/:productId/suppliers', async (req, res) => {
+// POST endpoint to add a supplier to a product
+app.post('/api/products/:productId/suppliers', async (req, res) => {
   try {
-    const client = new shopify.clients.Rest({
+    const { productId } = req.params;
+    const { name, priority, price, stockLevel } = req.body;
+
+    // Validate required fields
+    if (!name || priority === undefined || !price || stockLevel === undefined) {
+      return res.status(400).json({ 
+        error: 'Missing required fields',
+        required: ['name', 'priority', 'price', 'stockLevel']
+      });
+    }
+
+    // Verify product exists
+    const client = new shopify.clients.Graphql({
       session: {
         shop: process.env.SHOPIFY_SHOP_NAME,
         accessToken: process.env.SHOPIFY_ACCESS_TOKEN
       }
     });
 
-    // Format product ID for Shopify API
-    const productId = req.params.productId;
     const formattedProductId = productId.includes('/') ? productId : `gid://shopify/Product/${productId}`;
 
-    // First, verify the product exists using GraphQL
-    const graphqlClient = new shopify.clients.Graphql({
-      session: {
-        shop: process.env.SHOPIFY_SHOP_NAME,
-        accessToken: process.env.SHOPIFY_ACCESS_TOKEN
-      }
-    });
-
-    const response = await graphqlClient.query({
+    const response = await client.query({
       data: `{
         product(id: "${formattedProductId}") {
           id
@@ -59,103 +56,58 @@ app.get('/api/products/:productId/suppliers', async (req, res) => {
       }`
     });
 
-    // If we get here, the product exists
-    // For now, return a test supplier
-    res.json([{
-      id: 'test-supplier-1',
-      name: 'Test Supplier',
-      priority: 1,
-      price: 100.00,
-      stockLevel: 50,
-      productId: productId
-    }]);
+    // If we get here, product exists
+    // Create new supplier
+    const supplier = {
+      id: Date.now().toString(),
+      name,
+      priority,
+      price,
+      stockLevel,
+      createdAt: new Date().toISOString(),
+      status: 'active'
+    };
 
-  } catch (error) {
-    console.error('Error details:', error);
-    if (error.response?.code === 404) {
-      res.status(404).json({ error: 'Product not found' });
-    } else {
-      res.status(500).json({ 
-        error: 'Failed to fetch suppliers',
-        details: error.message
-      });
+    // Store supplier (in-memory for now)
+    if (!suppliersByProduct.has(productId)) {
+      suppliersByProduct.set(productId, []);
     }
+    
+    const suppliers = suppliersByProduct.get(productId);
+    suppliers.push(supplier);
+    
+    // Sort suppliers by priority
+    suppliers.sort((a, b) => a.priority - b.priority);
+
+    res.status(201).json(supplier);
+  } catch (error) {
+    console.error('Error adding supplier:', error);
+    res.status(500).json({ error: 'Failed to add supplier' });
   }
 });
 
-// Connection test endpoint
-app.get('/test-connection', async (req, res) => {
+// GET endpoint to retrieve suppliers for a product
+app.get('/api/products/:productId/suppliers', async (req, res) => {
   try {
-    const results = {
-      adminAPI: false,
-      storefrontAPI: false,
-      details: {},
-      environment: {
-        hasAdminToken: !!process.env.SHOPIFY_ACCESS_TOKEN,
-        hasApiKey: !!process.env.SHOPIFY_API_KEY,
-        hasStorefrontToken: !!process.env.SHOPIFY_STOREFRONT_TOKEN,
-        hasShopName: !!process.env.SHOPIFY_SHOP_NAME
-      }
-    };
-
-    // Test Admin API
-    try {
-      const client = new shopify.clients.Rest({
-        session: {
-          shop: process.env.SHOPIFY_SHOP_NAME,
-          accessToken: process.env.SHOPIFY_ACCESS_TOKEN
-        }
-      });
-
-      const response = await client.get({
-        path: 'shop'
-      });
-
-      results.adminAPI = true;
-      results.details.adminAPI = response.body.shop;
-    } catch (error) {
-      results.details.adminAPI = { error: error.message };
-    }
-
-    // Test Storefront API
-    try {
-      const response = await fetch(
-        `https://${process.env.SHOPIFY_SHOP_NAME}/api/2024-01/graphql.json`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-Shopify-Storefront-Access-Token': process.env.SHOPIFY_STOREFRONT_TOKEN
-          },
-          body: JSON.stringify({
-            query: `{
-              shop {
-                name
-              }
-            }`
-          })
-        }
-      );
-
-      const data = await response.json();
-      
-      if (data.errors) {
-        throw new Error(data.errors[0].message);
-      }
-
-      results.storefrontAPI = true;
-      results.details.storefrontAPI = data.data;
-    } catch (error) {
-      results.details.storefrontAPI = { error: error.message };
-    }
-
-    res.json(results);
+    const { productId } = req.params;
+    
+    // Get suppliers from our storage
+    const suppliers = suppliersByProduct.get(productId) || [];
+    
+    // Return sorted by priority
+    res.json(suppliers.sort((a, b) => a.priority - b.priority));
   } catch (error) {
-    res.status(500).json({ 
-      error: error.message,
-      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
-    });
+    console.error('Error fetching suppliers:', error);
+    res.status(500).json({ error: 'Failed to fetch suppliers' });
   }
+});
+
+// Basic health check
+app.get('/', (req, res) => {
+  res.status(200).json({ 
+    status: 'healthy',
+    message: 'Multi-Supplier Management App Running'
+  });
 });
 
 app.listen(port, () => {
