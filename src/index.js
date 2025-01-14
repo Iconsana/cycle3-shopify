@@ -2,6 +2,11 @@ import express from 'express';
 import dotenv from 'dotenv';
 import '@shopify/shopify-api/adapters/node';
 import { shopifyApi, LATEST_API_VERSION } from '@shopify/shopify-api';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 dotenv.config();
 
@@ -21,95 +26,22 @@ const shopify = shopifyApi({
   isEmbeddedApp: true,
 });
 
+// Middleware
 app.use(express.json());
 
-// POST endpoint to add a supplier to a product
-app.post('/api/products/:productId/suppliers', async (req, res) => {
-  try {
-    const { productId } = req.params;
-    const { name, priority, price, stockLevel } = req.body;
+// Serve static files from public directory
+app.use(express.static(path.join(__dirname, '../public')));
 
-    // Validate required fields
-    if (!name || priority === undefined || !price || stockLevel === undefined) {
-      return res.status(400).json({ 
-        error: 'Missing required fields',
-        required: ['name', 'priority', 'price', 'stockLevel']
-      });
-    }
-
-    // Verify product exists
-    const client = new shopify.clients.Graphql({
-      session: {
-        shop: process.env.SHOPIFY_SHOP_NAME,
-        accessToken: process.env.SHOPIFY_ACCESS_TOKEN
-      }
-    });
-
-    const formattedProductId = productId.includes('/') ? productId : `gid://shopify/Product/${productId}`;
-
-    const response = await client.query({
-      data: `{
-        product(id: "${formattedProductId}") {
-          id
-          title
-        }
-      }`
-    });
-
-    // If we get here, product exists
-    // Create new supplier
-    const supplier = {
-      id: Date.now().toString(),
-      name,
-      priority,
-      price,
-      stockLevel,
-      createdAt: new Date().toISOString(),
-      status: 'active'
-    };
-
-    // Store supplier (in-memory for now)
-    if (!suppliersByProduct.has(productId)) {
-      suppliersByProduct.set(productId, []);
-    }
-    
-    const suppliers = suppliersByProduct.get(productId);
-    suppliers.push(supplier);
-    
-    // Sort suppliers by priority
-    suppliers.sort((a, b) => a.priority - b.priority);
-
-    res.status(201).json(supplier);
-  } catch (error) {
-    console.error('Error adding supplier:', error);
-    res.status(500).json({ error: 'Failed to add supplier' });
-  }
-});
-
-// GET endpoint to retrieve suppliers for a product
-app.get('/api/products/:productId/suppliers', async (req, res) => {
-  try {
-    const { productId } = req.params;
-    
-    // Get suppliers from our storage
-    const suppliers = suppliersByProduct.get(productId) || [];
-    
-    // Return sorted by priority
-    res.json(suppliers.sort((a, b) => a.priority - b.priority));
-  } catch (error) {
-    console.error('Error fetching suppliers:', error);
-    res.status(500).json({ error: 'Failed to fetch suppliers' });
-  }
-});
-
-// Basic health check
+// Basic health check and test page
 app.get('/', (req, res) => {
-  res.status(200).json({ 
-    status: 'healthy',
-    message: 'Multi-Supplier Management App Running'
-  });
+  if (req.headers.accept?.includes('text/html')) {
+    res.sendFile(path.join(__dirname, '../public/test.html'));
+  } else {
+    res.status(200).json({ 
+      status: 'healthy',
+      message: 'Multi-Supplier Management App Running'
+    });
+  }
 });
 
-app.listen(port, () => {
-  console.log(`Server running on port ${port}`);
-});
+[... rest of the routes stay the same ...]
