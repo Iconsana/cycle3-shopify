@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Supplier Management Test</title>
+    <title>Multi-Supplier Management Test</title>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-gray-100">
@@ -51,7 +51,7 @@
                 <h2 class="text-xl font-semibold">Current Suppliers</h2>
                 <button onclick="loadSuppliers()" 
                         class="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600">
-                    Refresh
+                    Refresh List
                 </button>
             </div>
             <div id="suppliersList" class="space-y-4"></div>
@@ -59,6 +59,12 @@
     </div>
 
     <script>
+        // Function to show error messages
+        function showError(message) {
+            alert(message);
+            console.error(message);
+        }
+
         // Add Supplier
         document.getElementById('addSupplierForm').addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -80,17 +86,23 @@
                     body: JSON.stringify(data)
                 });
 
-                if (response.ok) {
-                    document.getElementById('name').value = '';
-                    document.getElementById('price').value = '';
-                    document.getElementById('stockLevel').value = '';
-                    loadSuppliers();
-                } else {
-                    const error = await response.json();
-                    alert(`Error: ${error.message || 'Failed to add supplier'}`);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
                 }
+
+                const result = await response.json();
+                console.log('Supplier added:', result);
+                
+                // Clear form
+                document.getElementById('name').value = '';
+                document.getElementById('price').value = '';
+                document.getElementById('stockLevel').value = '';
+                
+                // Reload suppliers list
+                await loadSuppliers();
+                
             } catch (error) {
-                alert('Error adding supplier: ' + error.message);
+                showError('Error adding supplier: ' + error.message);
             }
         });
 
@@ -98,12 +110,26 @@
         async function loadSuppliers() {
             const productId = document.getElementById('productId').value;
             try {
+                console.log('Fetching suppliers for product:', productId);
                 const response = await fetch(`/api/products/${productId}/suppliers`);
-                const suppliers = await response.json();
                 
-                document.getElementById('suppliersList').innerHTML = suppliers
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const suppliers = await response.json();
+                console.log('Suppliers loaded:', suppliers);
+                
+                const suppliersListElement = document.getElementById('suppliersList');
+                if (suppliers.length === 0) {
+                    suppliersListElement.innerHTML = '<p class="text-gray-500">No suppliers found</p>';
+                    return;
+                }
+                
+                suppliersListElement.innerHTML = suppliers
+                    .sort((a, b) => a.priority - b.priority) // Sort by priority
                     .map(supplier => `
-                        <div class="border rounded p-4">
+                        <div class="border rounded p-4 hover:bg-gray-50">
                             <div class="flex justify-between items-start">
                                 <div>
                                     <h3 class="font-semibold">${supplier.name}</h3>
@@ -118,7 +144,7 @@
                     `)
                     .join('');
             } catch (error) {
-                console.error('Error loading suppliers:', error);
+                showError('Error loading suppliers: ' + error.message);
             }
         }
 
