@@ -6,12 +6,18 @@
   "scripts": {
     "start": "node src/index.js",
     "test-connection": "node src/test-connection.js",
-    "dev": "nodemon src/index.js"
+    "dev": "nodemon src/index.js",
+    "shopify": "shopify",
+    "generate": "shopify app generate extension",
+    "deploy": "shopify app deploy"
   },
   "dependencies": {
     "express": "^4.18.2",
     "dotenv": "^16.3.1",
     "@shopify/shopify-api": "^7.7.0",
+    "@shopify/app": "^3.0.0",
+    "@shopify/cli": "^3.0.0",
+    "@shopify/admin-ui-extensions": "^1.0.0",
     "node-fetch": "^3.3.2"
   },
   "devDependencies": {
