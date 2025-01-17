@@ -4,6 +4,7 @@ import '@shopify/shopify-api/adapters/node';
 import { shopifyApi, LATEST_API_VERSION } from '@shopify/shopify-api';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import webhookRoutes from './routes/webhooks.js';
 
 // ES Module fix for __dirname
 const __filename = fileURLToPath(import.meta.url);
@@ -96,6 +97,9 @@ app.use((req, res) => {
     message: 'Not Found'
   });
 });
+
+// Add this with other middleware
+app.use('/webhooks', webhookRoutes);
 
 // Start server
 app.listen(port, () => {
