@@ -7,7 +7,7 @@ network_access = true
 block_progress = false
 
 [[extension_points]]
-target = "admin.product.details"   # Updated target
+target = "admin.product-details.primary-button"
 module = "./src/index.js"
 
 [settings]
