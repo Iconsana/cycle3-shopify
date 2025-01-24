@@ -1,21 +1,17 @@
+// src/routes/webhooks.js
 import express from 'express';
-import { generatePurchaseOrder } from '../services/po-generator.js';
+import { generatePurchaseOrders } from '../services/po-generator.js';
 
 const router = express.Router();
 
-router.post('/order/create', async (req, res) => {
+router.post('/order-created', async (req, res) => {
   try {
     const order = req.body;
-    console.log('New order received:', order.order_number);
-    
-    // Generate PO for the order
-    const purchaseOrder = await generatePurchaseOrder(order);
-    console.log('Generated PO:', purchaseOrder.poNumber);
-    
-    res.status(200).send('Webhook processed successfully');
+    const purchaseOrders = await generatePurchaseOrders(order);
+    res.json({ success: true, purchaseOrders });
   } catch (error) {
-    console.error('Error processing webhook:', error);
-    res.status(500).send('Error processing webhook');
+    console.error('Webhook error:', error);
+    res.status(500).json({ error: error.message });
   }
 });
 
