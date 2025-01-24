@@ -5,6 +5,8 @@ import { shopifyApi, LATEST_API_VERSION } from '@shopify/shopify-api';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import webhookRoutes from './routes/webhooks.js';
+import { connectDB } from './database.js';
+import mongoose from 'mongoose';
 
 // ES Module fix for __dirname
 const __filename = fileURLToPath(import.meta.url);
