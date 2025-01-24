@@ -1,6 +1,7 @@
 // src/routes/webhooks.js
 import express from 'express';
 import { ProductSupplier, Supplier } from '../models/index.js';
+import { generatePurchaseOrders } from '../services/po-generator.js';
 
 const router = express.Router();
 
