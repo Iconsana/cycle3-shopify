@@ -1,210 +1,116 @@
+// extensions/product-supplier-management/src/index.js
 import {
   extend,
-  TextField,
-  Select,
   Button,
   BlockStack,
   InlineStack,
-  Card,
   Text,
-  Modal,
+  TextField,
+  Card,
+  DataTable,
+  Form,
+  useEffect,
+  useState,
 } from '@shopify/admin-ui-extensions';
 
-console.log('Extension script loaded'); // Debug log
+extend('product-supplier-management', async (root) => {
+  const [suppliers, setSuppliers] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const productId = root.productId;
+  const apiUrl = `https://cycle3-shopify.onrender.com/api/products/${productId}/suppliers`;
 
-extend('Admin::Product::PrimaryButton', async (root, { extensionPoint }) => {
-  console.log('Extension point triggered', extensionPoint); // Debug log
+  useEffect(() => {
+    fetchSuppliers();
+  }, []);
 
-  const container = root.createComponent(BlockStack, {
-    spacing: 'loose',
-  });
-
-  // State for new supplier form
-  let showNewSupplierForm = false;
-  let suppliersList = [];
-
-  // Supplier Management Card
-  const card = root.createComponent(Card, {
-    title: 'Supplier Management',
-    sectioned: true,
-  });
-
-  // Supplier Dropdown
-  const supplierSelect = root.createComponent(Select, {
-    label: 'Select Supplier',
-    options: [
-      { label: 'Add New Supplier', value: 'new' },
-      // Dynamic options will be populated here
-    ],
-    onChange: async (value) => {
-      if (value === 'new') {
-        showNewSupplierForm = true;
-        root.rerender();
-      }
-    },
-  });
-
-  // Priority Field
-  const priorityField = root.createComponent(TextField, {
-    label: 'Priority',
-    type: 'number',
-    min: 1,
-    helpText: 'Lower number = higher priority',
-  });
-
-  // Price Field
-  const priceField = root.createComponent(TextField, {
-    label: 'Price',
-    type: 'number',
-    step: '0.01',
-    prefix: 'R',
-  });
-
-  // Stock Level Field
-  const stockField = root.createComponent(TextField, {
-    label: 'Stock Level',
-    type: 'number',
-    min: 0,
-  });
-
-  // Save Button
-  const saveButton = root.createComponent(Button, {
-    title: 'Save Supplier',
-    primary: true,
-    onPress: async () => {
-      // Save supplier logic here
-      const data = {
-        priority: parseInt(priorityField.value),
-        price: parseFloat(priceField.value),
-        stockLevel: parseInt(stockField.value),
-        supplierId: supplierSelect.value
-      };
-
-      try {
-        const response = await fetch(`/api/products/${extensionPoint.productId}/suppliers`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(data),
-        });
-        
-        if (response.ok) {
-          // Clear form and refresh list
-          priorityField.value = '';
-          priceField.value = '';
-          stockField.value = '';
-          await loadSuppliers();
-        }
-      } catch (error) {
-        console.error('Error saving supplier:', error);
-      }
-    },
-  });
-
-  // Add components to card
-  card.appendChild(
-    root.createComponent(BlockStack, {
-      spacing: 'tight',
-      children: [
-        supplierSelect,
-        priorityField,
-        priceField,
-        stockField,
-        root.createComponent(InlineStack, {
-          spacing: 'tight',
-          alignment: 'end',
-          children: [saveButton],
-        }),
-      ],
-    })
-  );
-
-  // New Supplier Form Modal
-  if (showNewSupplierForm) {
-    container.appendChild(
-      root.createComponent(Modal, {
-        title: 'Add New Supplier',
-        onClose: () => {
-          showNewSupplierForm = false;
-          root.rerender();
-        },
-        children: [
-          root.createComponent(BlockStack, {
-            spacing: 'tight',
-            children: [
-              root.createComponent(TextField, {
-                label: 'Supplier Name',
-                required: true,
-              }),
-              root.createComponent(TextField, {
-                label: 'Email',
-                type: 'email',
-                required: true,
-              }),
-              root.createComponent(TextField, {
-                label: 'Lead Time (days)',
-                type: 'number',
-                min: 0,
-                required: true,
-              }),
-              root.createComponent(Button, {
-                title: 'Add Supplier',
-                primary: true,
-                onPress: async () => {
-                  showNewSupplierForm = false;
-                  root.rerender();
-                },
-              }),
-            ],
-          }),
-        ],
-      })
-    );
-  }
-
-  // Load suppliers function
-  async function loadSuppliers() {
+  const fetchSuppliers = async () => {
     try {
-      const response = await fetch(`/api/products/${extensionPoint.productId}/suppliers`);
-      if (response.ok) {
-        const suppliers = await response.json();
-        suppliersList = suppliers;
-        updateSuppliersList();
-      }
+      setLoading(true);
+      const response = await fetch(apiUrl);
+      const data = await response.json();
+      setSuppliers(data);
     } catch (error) {
-      console.error('Error loading suppliers:', error);
+      console.error('Error fetching suppliers:', error);
+    } finally {
+      setLoading(false);
     }
-  }
+  };
 
-  // Update suppliers list display
-  function updateSuppliersList() {
-    const list = root.createComponent(BlockStack, {
-      spacing: 'tight',
-    });
+  const addSupplier = async (formData) => {
+    try {
+      setLoading(true);
+      await fetch(apiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData)
+      });
+      await fetchSuppliers();
+    } catch (error) {
+      console.error('Error adding supplier:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-    suppliersList.forEach(supplier => {
-      list.appendChild(
-        root.createComponent(InlineStack, {
-          spacing: 'loose',
-          alignment: 'center',
-          children: [
-            root.createComponent(Text, { text: supplier.name }),
-            root.createComponent(Text, { text: `Priority: ${supplier.priority}` }),
-            root.createComponent(Text, { text: `R${supplier.price.toFixed(2)}` }),
-            root.createComponent(Text, { text: `Stock: ${supplier.stockLevel}` }),
-          ],
-        })
-      );
-    });
+  root.render(
+    <BlockStack gap="400">
+      <Card title="Supplier Management">
+        <BlockStack gap="400">
+          <Form onSubmit={addSupplier}>
+            <BlockStack gap="300">
+              <TextField 
+                label="Name" 
+                name="name" 
+                required 
+                disabled={loading}
+              />
+              <TextField 
+                label="Priority" 
+                name="priority" 
+                type="number" 
+                required 
+                disabled={loading}
+              />
+              <TextField 
+                label="Price" 
+                name="price" 
+                type="number" 
+                step="0.01" 
+                required 
+                disabled={loading}
+              />
+              <TextField 
+                label="Stock Level" 
+                name="stockLevel" 
+                type="number" 
+                required 
+                disabled={loading}
+              />
+              <Button submit disabled={loading}>
+                {loading ? 'Adding...' : 'Add Supplier'}
+              </Button>
+            </BlockStack>
+          </Form>
 
-    card.children = [list];
-  }
+          {loading && <Text>Loading...</Text>}
 
-  // Initial load
-  loadSuppliers();
+          {!loading && suppliers.length > 0 && (
+            <DataTable
+              headings={['Name', 'Priority', 'Price', 'Stock']}
+              rows={suppliers.map(s => [
+                s.name,
+                s.priority.toString(),
+                `R${s.price.toFixed(2)}`,
+                s.stockLevel.toString()
+              ])}
+            />
+          )}
 
-  // Add card to container
-  container.appendChild(card);
-  return container;
+          {!loading && suppliers.length === 0 && (
+            <Text>No suppliers added yet</Text>
+          )}
+        </BlockStack>
+      </Card>
+    </BlockStack>
+  );
 });
