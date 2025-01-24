@@ -14,6 +14,7 @@ const __dirname = path.dirname(__filename);
 
 // Load environment variables
 dotenv.config();
+connectDB();
 
 const app = express();
 const port = process.env.PORT || 10000;
