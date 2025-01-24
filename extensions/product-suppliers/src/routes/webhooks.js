@@ -118,19 +118,12 @@ router.post('/orders/create', async (req, res) => {
     if (!verifyShopifyWebhook(req)) {
       return res.status(401).json({ error: 'Invalid webhook signature' });
     }
-
     const order = req.body;
-    console.log('New order received:', order.order_number);
-    
-    // Here we'll add PO generation logic later
-    // For now, just acknowledge receipt
-    
-    res.status(200).send('Webhook processed successfully');
+    const purchaseOrders = await generatePurchaseOrders(order);
+    res.status(200).json({ success: true, purchaseOrders });
   } catch (error) {
     console.error('Error processing order creation webhook:', error);
-    res.status(500).json({ 
-      error: 'Error processing order webhook' 
-    });
+    res.status(500).json({ error: 'Error processing order webhook' });
   }
 });
 
