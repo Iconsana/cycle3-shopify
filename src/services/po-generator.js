@@ -1,35 +1,42 @@
+// src/services/po-generator.js
 import { ProductSupplier, PurchaseOrder } from '../models/index.js';
-import shopify from '../../config/shopify.js';
 
-async function generatePurchaseOrders(order) {
+export async function generatePurchaseOrders(order) {
   try {
     const { line_items, shipping_address, order_number } = order;
     const supplierItems = await groupItemsBySupplier(line_items);
     const purchaseOrders = [];
 
     for (const [supplierId, items] of Object.entries(supplierItems)) {
-      const poNumber = `PO-${order_number}-${supplierId}`;
+      // Generate unique PO number combining order number and supplier
+      const poNumber = `PO-${order_number}-${supplierId.slice(-4)}`;
+      
+      // Calculate totals
+      const subtotal = items.reduce((sum, item) => sum + (item.quantity * item.supplierPrice), 0);
+      const total = subtotal; // Add tax/shipping logic if needed
       
       const purchaseOrder = new PurchaseOrder({
         poNumber,
         supplierId,
         orderReference: order_number,
+        status: 'pending_approval',
         items: items.map(item => ({
           sku: item.sku,
           quantity: item.quantity,
           title: item.title,
           variant_id: item.variant_id,
           supplierPrice: item.supplierPrice,
-          leadTime: item.leadTime
+          lineTotal: item.quantity * item.supplierPrice
         })),
-        shippingAddress: shipping_address
+        shippingAddress: formatShippingAddress(shipping_address),
+        subtotal,
+        total,
+        notes: `Order #${order_number}`,
+        requiredBy: calculateRequiredDate(items)
       });
 
       await purchaseOrder.save();
       purchaseOrders.push(purchaseOrder);
-      
-      // Create Shopify metafield for reference
-      await createPoMetafield(order.id, purchaseOrder);
     }
 
     return purchaseOrders;
@@ -43,23 +50,24 @@ async function groupItemsBySupplier(lineItems) {
   const supplierItems = {};
   
   for (const item of lineItems) {
-    // Find supplier assignments for this product
+    // Find all suppliers for this product
     const productSuppliers = await ProductSupplier.find({ 
       productId: item.product_id 
-    }).populate('supplierId').sort({ priority: -1 });
+    }).populate('supplierId')
+    .sort({ priority: 1 }); // Lower number = higher priority
 
     if (!productSuppliers.length) {
       console.warn(`No supplier found for product: ${item.product_id}`);
       continue;
     }
 
-    // Get primary supplier or available alternative
+    // Find best supplier based on priority, stock, and lead time
     const supplier = await determineSupplier(productSuppliers, item.quantity);
     
     if (!supplierItems[supplier._id]) {
       supplierItems[supplier._id] = [];
     }
-    
+
     supplierItems[supplier._id].push({
       ...item,
       supplierPrice: supplier.price,
@@ -71,36 +79,39 @@ async function groupItemsBySupplier(lineItems) {
 }
 
 async function determineSupplier(suppliers, quantity) {
-  // Find first supplier with enough stock
-  for (const supplier of suppliers) {
-    if (supplier.stockLevel >= quantity) {
-      return supplier;
-    }
+  // First try primary supplier with sufficient stock
+  const primarySupplier = suppliers.find(s => s.stockLevel >= quantity);
+  if (primarySupplier) return primarySupplier;
+
+  // If no supplier has enough stock, look at lead times
+  const availableSuppliers = suppliers.filter(s => s.stockLevel > 0);
+  if (availableSuppliers.length > 0) {
+    // Choose supplier with shortest lead time
+    return availableSuppliers.sort((a, b) => a.leadTime - b.leadTime)[0];
   }
-  
-  // If no supplier has enough stock, return highest priority supplier
+
+  // If no supplier has stock, use highest priority supplier
   return suppliers[0];
 }
 
-async function createPoMetafield(orderId, purchaseOrder) {
-  const client = new shopify.clients.Rest({
-    session: {
-      shop: process.env.SHOPIFY_SHOP_NAME,
-      accessToken: process.env.SHOPIFY_ACCESS_TOKEN
-    }
-  });
-
-  await client.post({
-    path: `orders/${orderId}/metafields`,
-    data: {
-      metafield: {
-        namespace: 'multi_supplier_pos',
-        key: `po_${purchaseOrder.poNumber}`,
-        value: JSON.stringify(purchaseOrder),
-        type: 'json'
-      }
-    }
-  });
+function formatShippingAddress(address) {
+  return {
+    name: address.name,
+    company: address.company,
+    address1: address.address1,
+    address2: address.address2,
+    city: address.city,
+    province: address.province,
+    zip: address.zip,
+    country: address.country,
+    phone: address.phone
+  };
 }
 
-export { generatePurchaseOrders };
+function calculateRequiredDate(items) {
+  // Get longest lead time from items
+  const maxLeadTime = Math.max(...items.map(item => item.leadTime || 0));
+  const date = new Date();
+  date.setDate(date.getDate() + maxLeadTime);
+  return date;
+}
