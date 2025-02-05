@@ -7,6 +7,7 @@ import { fileURLToPath } from 'url';
 import webhookRoutes from './routes/webhooks.js';
 import { connectDB } from './database.js';
 import mongoose from 'mongoose';
+import { registerWebhooks } from './services/webhook-registration.js';
 
 // ES Module fix for __dirname
 const __filename = fileURLToPath(import.meta.url);
@@ -109,5 +110,12 @@ app.listen(port, () => {
   console.log(`Server running on port ${port}`);
   console.log(`Public directory serving from: ${publicPath}`);
 });
+
+try {
+  await registerWebhooks();
+  console.log('Webhooks registered successfully');
+} catch (error) {
+  console.error('Failed to register webhooks:', error);
+}
 
 export default app;
