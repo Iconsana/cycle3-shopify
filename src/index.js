@@ -1,15 +1,12 @@
-// src/index.js
 import express from 'express';
 import dotenv from 'dotenv';
-import '@shopify/shopify-api/adapters/node';
-import { shopifyApi, LATEST_API_VERSION } from '@shopify/shopify-api';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import webhookRoutes from './routes/webhooks.js';
 import { connectDB } from './database.js';
 import mongoose from 'mongoose';
 import { registerWebhooks } from './services/webhook-registration.js';
-import shopify from '../config/shopify.js';  // For direct shopify usage
+import shopify from '../config/shopify.js';  // Import the existing config
 
 // ES Module fix for __dirname
 const __filename = fileURLToPath(import.meta.url);
@@ -27,16 +24,6 @@ const port = process.env.PORT || 10000;
 // Debug logging for paths
 const publicPath = path.join(__dirname, '../public');
 console.log('Public directory path:', publicPath);
-
-// Initialize Shopify API with Node adapter
-const shopify = shopifyApi({
-  apiKey: process.env.SHOPIFY_API_KEY,
-  apiSecretKey: process.env.SHOPIFY_API_SECRET,
-  scopes: ['read_products', 'write_products', 'read_orders', 'write_orders'],
-  hostName: process.env.SHOPIFY_SHOP_NAME?.replace('.myshopify.com', ''),
-  apiVersion: LATEST_API_VERSION,
-  isEmbeddedApp: true,
-});
 
 // Middleware
 app.use(express.json());
