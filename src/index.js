@@ -1,3 +1,4 @@
+// src/index.js
 import express from 'express';
 import dotenv from 'dotenv';
 import '@shopify/shopify-api/adapters/node';
@@ -15,6 +16,8 @@ const __dirname = path.dirname(__filename);
 
 // Load environment variables
 dotenv.config();
+
+// Connect to MongoDB
 connectDB();
 
 const app = express();
@@ -28,7 +31,7 @@ console.log('Public directory path:', publicPath);
 const shopify = shopifyApi({
   apiKey: process.env.SHOPIFY_API_KEY,
   apiSecretKey: process.env.SHOPIFY_API_SECRET,
-  scopes: ['read_products', 'write_products'],
+  scopes: ['read_products', 'write_products', 'read_orders', 'write_orders'],
   hostName: process.env.SHOPIFY_SHOP_NAME?.replace('.myshopify.com', ''),
   apiVersion: LATEST_API_VERSION,
   isEmbeddedApp: true,
@@ -85,6 +88,9 @@ app.post('/api/products/:productId/suppliers', (req, res) => {
   res.status(201).json(supplierData);
 });
 
+// Webhook routes
+app.use('/webhooks', webhookRoutes);
+
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error('Error:', err);
@@ -102,20 +108,24 @@ app.use((req, res) => {
   });
 });
 
-// Add this with other middleware
-app.use('/webhooks', webhookRoutes);
-
-// Start server
-app.listen(port, () => {
-  console.log(`Server running on port ${port}`);
-  console.log(`Public directory serving from: ${publicPath}`);
-});
-
-try {
-  await registerWebhooks();
-  console.log('Webhooks registered successfully');
-} catch (error) {
-  console.error('Failed to register webhooks:', error);
-}
+// Register webhooks and start server
+(async () => {
+  try {
+    await registerWebhooks();
+    console.log('Webhooks registered successfully');
+    
+    app.listen(port, () => {
+      console.log(`Server running on port ${port}`);
+      console.log(`Public directory serving from: ${publicPath}`);
+    });
+  } catch (error) {
+    console.error('Failed to register webhooks:', error);
+    // Still start the server even if webhook registration fails
+    app.listen(port, () => {
+      console.log(`Server running on port ${port}`);
+      console.log(`Public directory serving from: ${publicPath}`);
+    });
+  }
+})();
 
 export default app;
