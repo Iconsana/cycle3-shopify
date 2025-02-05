@@ -1,5 +1,5 @@
 // src/services/webhook-registration.js
-import shopify from '../../config/shopify.js';  // Note the path change
+import shopify from '../../config/shopify.js';
 
 export async function registerWebhooks() {
   const webhooks = [
