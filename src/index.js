@@ -6,7 +6,6 @@ import webhookRoutes from './routes/webhooks.js';
 import { connectDB } from './database.js';
 import mongoose from 'mongoose';
 import { registerWebhooks } from './services/webhook-registration.js';
-import shopify from './config/shopify.js';
 import shopify, { generatePurchaseOrder } from './config/shopify.js';
 
 // ES Module fix for __dirname
