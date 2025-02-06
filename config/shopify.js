@@ -1,5 +1,4 @@
-// config/shopify.js
-
+// src/config/shopify.js
 import '@shopify/shopify-api/adapters/node';
 import { shopifyApi, LATEST_API_VERSION } from '@shopify/shopify-api';
 
@@ -12,6 +11,7 @@ const shopify = shopifyApi({
   isEmbeddedApp: true,
 });
 
+// Your existing generatePurchaseOrder and createMetafield functions
 async function generatePurchaseOrder(order) {
   try {
     const { line_items, shipping_address, order_number } = order;
