@@ -1,3 +1,5 @@
+// config/shopify.js
+
 import '@shopify/shopify-api/adapters/node';
 import { shopifyApi, LATEST_API_VERSION } from '@shopify/shopify-api';
 
@@ -25,7 +27,6 @@ async function generatePurchaseOrder(order) {
       shippingAddress: shipping_address,
       createdAt: new Date().toISOString()
     };
-
     await createMetafield(order.id, purchaseOrder);
     
     console.log('Purchase Order generated:', purchaseOrder.poNumber);
@@ -43,7 +44,7 @@ async function createMetafield(orderId, purchaseOrder) {
       accessToken: process.env.SHOPIFY_ACCESS_TOKEN
     }
   });
-
+  
   await client.post({
     path: `orders/${orderId}/metafields`,
     data: {
