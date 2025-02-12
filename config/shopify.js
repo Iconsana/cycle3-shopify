@@ -1,4 +1,3 @@
-// src/config/shopify.js
 import '@shopify/shopify-api/adapters/node';
 import { shopifyApi, LATEST_API_VERSION } from '@shopify/shopify-api';
 
@@ -6,12 +5,12 @@ const shopify = shopifyApi({
   apiKey: process.env.SHOPIFY_API_KEY,
   apiSecretKey: process.env.SHOPIFY_API_SECRET,
   scopes: ['read_orders', 'write_orders', 'write_files'],
-  hostName: process.env.SHOPIFY_SHOP_NAME,
+  hostName: process.env.APP_URL.replace(/https:\/\//, ''),  // Only this line changes
   apiVersion: LATEST_API_VERSION,
   isEmbeddedApp: true,
 });
 
-// Your existing generatePurchaseOrder and createMetafield functions
+// Rest of your file remains exactly the same
 async function generatePurchaseOrder(order) {
   try {
     const { line_items, shipping_address, order_number } = order;
