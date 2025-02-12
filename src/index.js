@@ -8,6 +8,29 @@ import mongoose from 'mongoose';
 import { registerWebhooks } from './services/webhook-registration.js';
 import shopify from '../config/shopify.js';
 
+// Add this after your imports in index.js
+// Debug logging
+console.log('Environment Check:', {
+  hasShopifyKey: !!process.env.SHOPIFY_API_KEY,
+  hasShopifySecret: !!process.env.SHOPIFY_API_SECRET,
+  appUrl: process.env.APP_URL,
+  shopName: process.env.SHOPIFY_SHOP_NAME,
+  hasMongoUri: !!process.env.MONGODB_URI
+});
+
+// Update your MongoDB connection to include more error details
+try {
+  await mongoose.connect(process.env.MONGODB_URI);
+  console.log('MongoDB connected successfully');
+} catch (error) {
+  console.error('MongoDB connection error details:', {
+    name: error.name,
+    message: error.message,
+    code: error.code,
+    errorType: error.constructor.name
+  });
+}
+
 // ES Module fix for __dirname
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
