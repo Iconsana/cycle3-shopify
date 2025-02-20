@@ -1,4 +1,8 @@
 import mongoose from 'mongoose';
+export { Supplier } from './supplier.js';
+export { ProductSupplier } from './productSupplier.js';
+export { PurchaseOrder } from './purchaseOrder.js';
+export { Session } from './session.js';
 
 const supplierSchema = new mongoose.Schema({
   name: { type: String, required: true },
