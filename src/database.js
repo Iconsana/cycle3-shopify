@@ -4,26 +4,40 @@ let isConnected = false;
 
 export const connectDB = async () => {
   if (!process.env.MONGODB_URI) {
-    console.log('MongoDB URI not found - skipping database connection');
+    console.error('MONGODB_URI is not defined in environment variables');
     return false;
   }
 
-  if (isConnected) {
-    console.log('Using existing database connection');
-    return true;
-  }
-
   try {
-    await mongoose.connect(process.env.MONGODB_URI, {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
+    console.log('Attempting to connect to MongoDB...');
+    console.log('Connection string starts with:', process.env.MONGODB_URI.substring(0, 20) + '...');
+
+    const conn = await mongoose.connect(process.env.MONGODB_URI, {
+      serverSelectionTimeoutMS: 5000,
+      maxPoolSize: 10,
+    });
+    
+    isConnected = true;
+    console.log(`MongoDB Connected: ${conn.connection.host}`);
+    console.log('Database name:', conn.connection.name);
+    return true;
+
+  } catch (error) {
+    console.error('MongoDB connection error details:', {
+      name: error.name,
+      message: error.message,
+      code: error.code,
+      errorType: error.constructor.name,
+      // Log the full error for debugging
+      fullError: error
     });
 
-    isConnected = true;
-    console.log('MongoDB connected successfully');
-    return true;
-  } catch (error) {
-    console.log('MongoDB connection error:', error.message);
+    if (error.code === 18) {
+      console.error('Authentication failed - please verify username and password');
+    } else if (error.code === 8000) {
+      console.error('Wrong credential format or invalid characters in password');
+    }
+
     return false;
   }
 };
