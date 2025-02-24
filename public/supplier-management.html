@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multi-Supplier Management</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .priority-high { background-color: #d1e7dd; }
+        .priority-medium { background-color: #fff3cd; }
+        .priority-low { background-color: #f8d7da; }
+        .supplier-card { margin-bottom: 15px; }
+        .stock-badge { margin-left: 10px; }
+    </style>
+</head>
+<body>
+    <div class="container mt-4">
+        <h1>Multi-Supplier Management</h1>
+        
+        <ul class="nav nav-tabs mb-4" id="myTab" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="suppliers-tab" data-bs-toggle="tab" data-bs-target="#suppliers" type="button" role="tab" aria-controls="suppliers" aria-selected="true">Suppliers</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="products-tab" data-bs-toggle="tab" data-bs-target="#products" type="button" role="tab" aria-controls="products" aria-selected="false">Product Suppliers</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="orders-tab" data-bs-toggle="tab" data-bs-target="#orders" type="button" role="tab" aria-controls="orders" aria-selected="false">Purchase Orders</button>
+            </li>
+        </ul>
+        
+        <div class="tab-content" id="myTabContent">
+            <!-- Suppliers Tab -->
+            <div class="tab-pane fade show active" id="suppliers" role="tabpanel" aria-labelledby="suppliers-tab">
+                <div class="row">
+                    <div class="col-md-4">
+                        <div class="card">
+                            <div class="card-header">
+                                Add New Supplier
+                            </div>
+                            <div class="card-body">
+                                <form id="supplierForm">
+                                    <div class="mb-3">
+                                        <label for="supplierName" class="form-label">Supplier Name</label>
+                                        <input type="text" class="form-control" id="supplierName" required>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="supplierEmail" class="form-label">Email</label>
+                                        <input type="email" class="form-control" id="supplierEmail" required>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="leadTime" class="form-label">Lead Time (days)</label>
+                                        <input type="number" class="form-control" id="leadTime" value="3" min="1">
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="apiType" class="form-label">Integration Type</label>
+                                        <select class="form-select" id="apiType">
+                                            <option value="email">Email</option>
+                                            <option value="api">API</option>
+                                        </select>
+                                    </div>
+                                    <button type="submit" class="btn btn-primary">Add Supplier</button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-8">
+                        <h3>Supplier List</h3>
+                        <div id="suppliersList" class="mt-3">
+                            <!-- Suppliers will be listed here dynamically -->
+                            <div class="alert alert-info">No suppliers added yet.</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Product Suppliers Tab -->
+            <div class="tab-pane fade" id="products" role="tabpanel" aria-labelledby="products-tab">
+                <div class="row">
+                    <div class="col-md-5">
+                        <div class="card">
+                            <div class="card-header">
+                                Assign Supplier to Product
+                            </div>
+                            <div class="card-body">
+                                <form id="productSupplierForm">
+                                    <div class="mb-3">
+                                        <label for="productId" class="form-label">Product ID</label>
+                                        <input type="text" class="form-control" id="productId" required>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="productName" class="form-label">Product Name</label>
+                                        <input type="text" class="form-control" id="productName">
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="supplierId" class="form-label">Supplier</label>
+                                        <select class="form-select" id="supplierId" required>
+                                            <option value="">Select a supplier</option>
+                                            <!-- Suppliers will be added here dynamically -->
+                                        </select>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="priority" class="form-label">Priority (1-10, 1 is highest)</label>
+                                        <input type="number" class="form-control" id="priority" min="1" max="10" value="1">
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="price" class="form-label">Price</label>
+                                        <input type="number" class="form-control" id="price" step="0.01" required>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="stockLevel" class="form-label">Stock Level</label>
+                                        <input type="number" class="form-control" id="stockLevel" value="0" min="0">
+                                    </div>
+                                    <button type="submit" class="btn btn-primary">Assign Supplier</button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-7">
+                        <div class="mb-3">
+                            <label for="productFilter" class="form-label">Filter by Product ID</label>
+                            <div class="input-group">
+                                <input type="text" class="form-control" id="productFilter" placeholder="Enter Product ID">
+                                <button class="btn btn-outline-secondary" type="button" id="filterButton">Filter</button>
+                                <button class="btn btn-outline-secondary" type="button" id="clearFilterButton">Clear</button>
+                            </div>
+                        </div>
+                        <h3>Product Suppliers</h3>
+                        <div id="productSuppliersList" class="mt-3">
+                            <!-- Product suppliers will be listed here dynamically -->
+                            <div class="alert alert-info">No product suppliers assigned yet.</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Purchase Orders Tab -->
+            <div class="tab-pane fade" id="orders" role="tabpanel" aria-labelledby="orders-tab">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h3>Purchase Orders</h3>
+                    <button id="simulateOrderButton" class="btn btn-success">Simulate New Order</button>
+                </div>
+                <div id="purchaseOrdersList">
+                    <!-- Purchase orders will be listed here dynamically -->
+                    <div class="alert alert-info">No purchase orders generated yet.</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // In-memory storage
+        const suppliers = [];
+        const productSuppliers = [];
+        const purchaseOrders = [];
+        
+        // Supplier form submission
+        document.getElementById('supplierForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const supplier = {
+                id: Date.now().toString(),
+                name: document.getElementById('supplierName').value,
+                email: document.getElementById('supplierEmail').value,
+                leadTime: parseInt(document.getElementById('leadTime').value),
+                apiType: document.getElementById('apiType').value,
+                status: 'active',
+                createdAt: new Date().toISOString()
+            };
+            
+            suppliers.push(supplier);
+            renderSuppliers();
+            updateSupplierDropdown();
+            this.reset();
+        });
+        
+        // Product Supplier form submission
+        document.getElementById('productSupplierForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const productSupplier = {
+                id: Date.now().toString(),
+                productId: document.getElementById('productId').value,
+                productName: document.getElementById('productName').value || document.getElementById('productId').value,
+                supplierId: document.getElementById('supplierId').value,
+                supplierName: suppliers.find(s => s.id === document.getElementById('supplierId').value)?.name || 'Unknown',
+                priority: parseInt(document.getElementById('priority').value),
+                price: parseFloat(document.getElementById('price').value),
+                stockLevel: parseInt(document.getElementById('stockLevel').value),
+                lastUpdated: new Date().toISOString()
+            };
+            
+            productSuppliers.push(productSupplier);
+            renderProductSuppliers();
+            this.reset();
+            document.getElementById('priority').value = '1';
+            document.getElementById('stockLevel').value = '0';
+        });
+        
+        // Filter product suppliers
+        document.getElementById('filterButton').addEventListener('click', function() {
+            renderProductSuppliers(document.getElementById('productFilter').value);
+        });
+        
+        // Clear filter
+        document.getElementById('clearFilterButton').addEventListener('click', function() {
+            document.getElementById('productFilter').value = '';
+            renderProductSuppliers();
+        });
+        
+        // Simulate new order
+        document.getElementById('simulateOrderButton').addEventListener('click', function() {
+            simulateNewOrder();
+        });
+        
+        // Render suppliers list
+        function renderSuppliers() {
+            const suppliersList = document.getElementById('suppliersList');
+            
+            if (suppliers.length === 0) {
+                suppliersList.innerHTML = '<div class="alert alert-info">No suppliers added yet.</div>';
+                return;
+            }
+            
+            suppliersList.innerHTML = '';
+            suppliers.forEach(supplier => {
+                const card = document.createElement('div');
+                card.className = 'card supplier-card';
+                
+                card.innerHTML = `
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between">
+                            <h5 class="card-title">${supplier.name}</h5>
+                            <span class="badge ${supplier.status === 'active' ? 'bg-success' : 'bg-secondary'}">${supplier.status}</span>
+                        </div>
+                        <p class="card-text">Email: ${supplier.email}</p>
+                        <p class="card-text">Lead Time: ${supplier.leadTime} days</p>
+                        <p class="card-text">Integration: ${supplier.apiType}</p>
+                        <button class="btn btn-sm btn-outline-danger delete-supplier" data-id="${supplier.id}">Delete</button>
+                    </div>
+                `;
+                
+                suppliersList.appendChild(card);
+            });
+            
+            // Add event listeners for delete buttons
+            document.querySelectorAll('.delete-supplier').forEach(button => {
+                button.addEventListener('click', function() {
+                    const id = this.getAttribute('data-id');
+                    const index = suppliers.findIndex(s => s.id === id);
+                    
+                    if (index !== -1) {
+                        suppliers.splice(index, 1);
+                        renderSuppliers();
+                        updateSupplierDropdown();
+                    }
+                });
+            });
+        }
+        
+        // Update supplier dropdown in the product-supplier form
+        function updateSupplierDropdown() {
+            const select = document.getElementById('supplierId');
+            
+            // Clear options except the first one
+            while (select.options.length > 1) {
+                select.remove(1);
+            }
+            
+            // Add suppliers
+            suppliers.forEach(supplier => {
+                const option = document.createElement('option');
+                option.value = supplier.id;
+                option.textContent = supplier.name;
+                select.appendChild(option);
+            });
+        }
+        
+        // Render product suppliers
+        function renderProductSuppliers(filterProductId = '') {
+            const productSuppliersList = document.getElementById('productSuppliersList');
+            
+            let filteredProductSuppliers = productSuppliers;
+            if (filterProductId) {
+                filteredProductSuppliers = productSuppliers.filter(ps => ps.productId === filterProductId);
+            }
+            
+            if (filteredProductSuppliers.length === 0) {
+                productSuppliersList.innerHTML = '<div class="alert alert-info">No product suppliers found.</div>';
+                return;
+            }
+            
+            // Group by product ID
+            const groupedByProduct = {};
+            filteredProductSuppliers.forEach(ps => {
+                if (!groupedByProduct[ps.productId]) {
+                    groupedByProduct[ps.productId] = [];
+                }
+                groupedByProduct[ps.productId].push(ps);
+            });
+            
+            productSuppliersList.innerHTML = '';
+            
+            // For each product, create a card
+            Object.keys(groupedByProduct).forEach(productId => {
+                const productCard = document.createElement('div');
+                productCard.className = 'card mb-4';
+                
+                const suppliers = groupedByProduct[productId];
+                const productName = suppliers[0].productName;
+                
+                // Sort suppliers by priority
+                suppliers.sort((a, b) => a.priority - b.priority);
+                
+                let suppliersHtml = '';
+                suppliers.forEach(ps => {
+                    const priorityClass = ps.priority <= 3 ? 'priority-high' : (ps.priority <= 7 ? 'priority-medium' : 'priority-low');
+                    
+                    suppliersHtml += `
+                        <div class="list-group-item ${priorityClass}">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <h6>${ps.supplierName}</h6>
+                                <div>
+                                    <span class="badge bg-primary">Priority: ${ps.priority}</span>
+                                    <span class="badge bg-${ps.stockLevel > 0 ? 'success' : 'danger'} stock-badge">
+                                        Stock: ${ps.stockLevel}
+                                    </span>
+                                </div>
+                            </div>
+                            <p class="mb-1">Price: $${ps.price.toFixed(2)}</p>
+                            <div class="d-flex justify-content-between align-items-center mt-2">
+                                <button class="btn btn-sm btn-outline-primary update-stock" data-id="${ps.id}">Update Stock</button>
+                                <button class="btn btn-sm btn-outline-danger delete-product-supplier" data-id="${ps.id}">Remove</button>
+                            </div>
+                        </div>
+                    `;
+                });
+                
+                productCard.innerHTML = `
+                    <div class="card-header">
+                        <h5 class="mb-0">Product: ${productName} (ID: ${productId})</h5>
+                    </div>
+                    <div class="list-group list-group-flush">
+                        ${suppliersHtml}
+                    </div>
+                `;
+                
+                productSuppliersList.appendChild(productCard);
+            });
+            
+            // Add event listeners for delete buttons
+            document.querySelectorAll('.delete-product-supplier').forEach(button => {
+                button.addEventListener('click', function() {
+                    const id = this.getAttribute('data-id');
+                    const index = productSuppliers.findIndex(ps => ps.id === id);
+                    
+                    if (index !== -1) {
+                        productSuppliers.splice(index, 1);
+                        renderProductSuppliers(filterProductId);
+                    }
+                });
+            });
+            
+            // Add event listeners for stock update buttons
+            document.querySelectorAll('.update-stock').forEach(button => {
+                button.addEventListener('click', function() {
+                    const id = this.getAttribute('data-id');
+                    const productSupplier = productSuppliers.find(ps => ps.id === id);
+                    
+                    if (productSupplier) {
+                        const newStock = prompt(`Update stock level for ${productSupplier.supplierName}:`, productSupplier.stockLevel);
+                        
+                        if (newStock !== null) {
+                            productSupplier.stockLevel = parseInt(newStock);
+                            productSupplier.lastUpdated = new Date().toISOString();
+                            renderProductSuppliers(filterProductId);
+                        }
+                    }
+                });
+            });
+        }
+        
+        // Simulate new order with fallback logic
+        function simulateNewOrder() {
+            if (productSuppliers.length === 0) {
+                alert('Please add product suppliers first');
+                return;
+            }
+            
+            // Group products and find available suppliers with stock
+            const groupedByProduct = {};
+            productSuppliers.forEach(ps => {
+                if (!groupedByProduct[ps.productId]) {
+                    groupedByProduct[ps.productId] = [];
+                }
+                groupedByProduct[ps.productId].push(ps);
+            });
+            
+            // Create order with random products (1-3 products)
+            const numProducts = Math.floor(Math.random() * 3) + 1;
+            const productIds = Object.keys(groupedByProduct);
+            const orderProducts = [];
+            
+            // Select random products and quantities
+            for (let i = 0; i < Math.min(numProducts, productIds.length); i++) {
+                const productId = productIds[Math.floor(Math.random() * productIds.length)];
+                const quantity = Math.floor(Math.random() * 5) + 1;
+                
+                // Skip if already added
+                if (orderProducts.find(p => p.productId === productId)) {
+                    continue;
+                }
+                
+                orderProducts.push({
+                    productId,
+                    productName: groupedByProduct[productId][0].productName,
+                    quantity
+                });
+            }
+            
+            // Create an order
+            const order = {
+                id: 'ORD-' + Date.now(),
+                status: 'processing',
+                items: orderProducts,
+                createdAt: new Date().toISOString()
+            };
+            
+            // Process POs based on supplier availability
+            const orderPOs = [];
+            
+            // For each product, find the highest priority supplier with stock
+            order.items.forEach(item => {
+                const suppliers = groupedByProduct[item.productId];
+                
+                // Sort by priority
+                suppliers.sort((a, b) => a.priority - b.priority);
+                
+                // Find first supplier with stock
+                let selectedSupplier = null;
+                for (const supplier of suppliers) {
+                    if (supplier.stockLevel >= item.quantity) {
+                        selectedSupplier = supplier;
+                        break;
+                    }
+                }
+                
+                // If no supplier has enough stock, use the highest priority one
+                if (!selectedSupplier && suppliers.length > 0) {
+                    selectedSupplier = suppliers[0];
+                }
+                
+                if (selectedSupplier) {
+                    // Find existing PO for this supplier or create new one
+                    let po = orderPOs.find(po => po.supplierId === selectedSupplier.supplierId);
+                    
+                    if (!po) {
+                        po = {
+                            poNumber: 'PO-' + Date.now() + '-' + selectedSupplier.supplierId.substring(0, 5),
+                            supplierId: selectedSupplier.supplierId,
+                            supplierName: selectedSupplier.supplierName,
+                            status: 'pending',
+                            items: [],
+                            createdAt: new Date().toISOString()
+                        };
+                        orderPOs.push(po);
+                    }
+                    
+                    // Add item to PO
+                    po.items.push({
+                        productId: item.productId,
+                        productName: item.productName,
+                        quantity: item.quantity,
+                        price: selectedSupplier.price
+                    });
+                    
+                    // Update stock level (simulate)
+                    const originalStock = selectedSupplier.stockLevel;
+                    selectedSupplier.stockLevel = Math.max(0, selectedSupplier.stockLevel - item.quantity);
+                    console.log(`Updated stock for ${selectedSupplier.supplierName} - ${item.productName}: ${originalStock} -> ${selectedSupplier.stockLevel}`);
+                }
+            });
+            
+            // Save POs
+            purchaseOrders.push(...orderPOs);
+            
+            // Update UI
+            renderProductSuppliers(document.getElementById('productFilter').value);
+            renderPurchaseOrders();
+        }
+        
+        // Render purchase orders
+        function renderPurchaseOrders() {
+            const purchaseOrdersList = document.getElementById('purchaseOrdersList');
+            
+            if (purchaseOrders.length === 0) {
+                purchaseOrdersList.innerHTML = '<div class="alert alert-info">No purchase orders generated yet.</div>';
+                return;
+            }
+            
+            purchaseOrdersList.innerHTML = '';
+            
+            // Sort by creation date (newest first)
+            const sortedPOs = [...purchaseOrders].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+            
+            sortedPOs.forEach(po => {
+                const card = document.createElement('div');
+                card.className = 'card mb-3';
+                
+                let itemsHtml = '';
+                let total = 0;
+                
+                po.items.forEach(item => {
+                    const itemTotal = item.quantity * item.price;
+                    total += itemTotal;
+                    
+                    itemsHtml += `
+                        <tr>
+                            <td>${item.productName}</td>
+                            <td>${item.quantity}</td>
+                            <td>$${item.price.toFixed(2)}</td>
+                            <td>$${itemTotal.toFixed(2)}</td>
+                        </tr>
+                    `;
+                });
+                
+                card.innerHTML = `
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5>${po.poNumber}</h5>
+                        <span class="badge bg-info">${po.status}</span>
+                    </div>
+                    <div class="card-body">
+                        <h6 class="card-subtitle mb-2 text-muted">Supplier: ${po.supplierName}</h6>
+                        <p class="card-text">Created: ${new Date(po.createdAt).toLocaleString()}</p>
+                        
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Product</th>
+                                    <th>Quantity</th>
+                                    <th>Unit Price</th>
+                                    <th>Total</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${itemsHtml}
+                                <tr class="table-info">
+                                    <td colspan="3" class="text-end"><strong>Total:</strong></td>
+                                    <td><strong>$${total.toFixed(2)}</strong></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                        
+                        <div class="d-flex justify-content-end mt-3">
+                            <button class="btn btn-sm btn-outline-primary me-2 send-po" data-id="${po.poNumber}">Send PO</button>
+                            <button class="btn btn-sm btn-outline-success me-2 approve-po" data-id="${po.poNumber}">Approve</button>
+                            <button class="btn btn-sm btn-outline-danger cancel-po" data-id="${po.poNumber}">Cancel</button>
+                        </div>
+                    </div>
+                `;
+                
+                purchaseOrdersList.appendChild(card);
+            });
+            
+            // Add event listeners for PO actions
+            document.querySelectorAll('.send-po').forEach(button => {
+                button.addEventListener('click', function() {
+                    const poNumber = this.getAttribute('data-id');
+                    const po = purchaseOrders.find(po => po.poNumber === poNumber);
+                    
+                    if (po) {
+                        po.status = 'sent';
+                        alert(`PO ${poNumber} sent to ${po.supplierName}`);
+                        renderPurchaseOrders();
+                    }
+                });
+            });
+            
+            document.querySelectorAll('.approve-po').forEach(button => {
+                button.addEventListener('click', function() {
+                    const poNumber = this.getAttribute('data-id');
+                    const po = purchaseOrders.find(po => po.poNumber === poNumber);
+                    
+                    if (po) {
+                        po.status = 'approved';
+                        renderPurchaseOrders();
+                    }
+                });
+            });
+            
+            document.querySelectorAll('.cancel-po').forEach(button => {
+                button.addEventListener('click', function() {
+                    const poNumber = this.getAttribute('data-id');
+                    const index = purchaseOrders.findIndex(po => po.poNumber === poNumber);
+                    
+                    if (index !== -1) {
+                        purchaseOrders.splice(index, 1);
+                        renderPurchaseOrders();
+                    }
+                });
+            });
+        }
+        
+        // Initialize the UI
+        renderSuppliers();
+        updateSupplierDropdown();
+        renderProductSuppliers();
+        renderPurchaseOrders();
+    </script>
+</body>
+</html>
