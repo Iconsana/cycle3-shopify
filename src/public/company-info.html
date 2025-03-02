@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Company Information</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .required-field::after {
+            content: "*";
+            color: red;
+            margin-left: 2px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container mt-4">
+        <h1 class="mb-4">Company Information</h1>
+        
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="/suppliers">Supplier Management</a></li>
+                <li class="breadcrumb-item active">Company Information</li>
+            </ol>
+        </nav>
+        
+        <div class="alert alert-info">
+            <strong>Note:</strong> This information will be used on purchase orders and other documents.
+        </div>
+        
+        <form id="companyInfoForm" class="mt-4">
+            <div class="row mb-4">
+                <div class="col-md-12">
+                    <h3>Basic Information</h3>
+                    <hr>
+                </div>
+                
+                <div class="col-md-6 mb-3">
+                    <label for="name" class="form-label required-field">Company Name</label>
+                    <input type="text" class="form-control" id="name" name="name" required>
+                </div>
+                
+                <div class="col-md-6 mb-3">
+                    <label for="email" class="form-label required-field">Email</label>
+                    <input type="email" class="form-control" id="email" name="email" required>
+                </div>
+                
+                <div class="col-md-6 mb-3">
+                    <label for="phone" class="form-label">Phone</label>
+                    <input type="tel" class="form-control" id="phone" name="phone">
+                </div>
+                
+                <div class="col-md-6 mb-3">
+                    <label for="fax" class="form-label">Fax</label>
+                    <input type="tel" class="form-control" id="fax" name="fax">
+                </div>
+                
+                <div class="col-md-6 mb-3">
+                    <label for="website" class="form-label">Website</label>
+                    <input type="url" class="form-control" id="website" name="website">
+                </div>
+                
+                <div class="col-md-6 mb-3">
+                    <label for="logo" class="form-label">Logo URL</label>
+                    <input type="url" class="form-control" id="logo" name="logo" placeholder="https://example.com/logo.png">
+                </div>
+            </div>
+            
+            <div class="row mb-4">
+                <div class="col-md-12">
+                    <h3>Address</h3>
+                    <hr>
+                </div>
+                
+                <div class="col-md-12 mb-3">
+                    <label for="address" class="form-label required-field">Street Address</label>
+                    <input type="text" class="form-control" id="address" name="address" required>
+                </div>
+                
+                <div class="col-md-4 mb-3">
+                    <label for="city" class="form-label required-field">City</label>
+                    <input type="text" class="form-control" id="city" name="city" required>
+                </div>
+                
+                <div class="col-md-4 mb-3">
+                    <label for="state" class="form-label">State/Province</label>
+                    <input type="text" class="form-control" id="state" name="state">
+                </div>
+                
+                <div class="col-md-4 mb-3">
+                    <label for="zipCode" class="form-label required-field">Postal/Zip Code</label>
+                    <input type="text" class="form-control" id="zipCode" name="zipCode" required>
+                </div>
+                
+                <div class="col-md-6 mb-3">
+                    <label for="country" class="form-label required-field">Country</label>
+                    <input type="text" class="form-control" id="country" name="country" required>
+                </div>
+            </div>
+            
+            <div class="row mb-4">
+                <div class="col-md-12">
+                    <h3>Business Information</h3>
+                    <hr>
+                </div>
+                
+                <div class="col-md-6 mb-3">
+                    <label for="vatNumber" class="form-label">VAT/Tax Number</label>
+                    <input type="text" class="form-control" id="vatNumber" name="vatNumber">
+                </div>
+                
+                <div class="col-md-6 mb-3">
+                    <label for="registrationNumber" class="form-label">Business Registration Number</label>
+                    <input type="text" class="form-control" id="registrationNumber" name="registrationNumber">
+                </div>
+            </div>
+            
+            <div class="row mb-4">
+                <div class="col-md-12">
+                    <h3>Bank Details</h3>
+                    <hr>
+                </div>
+                
+                <div class="col-md-6 mb-3">
+                    <label for="bankName" class="form-label">Bank Name</label>
+                    <input type="text" class="form-control" id="bankName" name="bankDetails.bankName">
+                </div>
+                
+                <div class="col-md-6 mb-3">
+                    <label for="accountName" class="form-label">Account Name</label>
+                    <input type="text" class="form-control" id="accountName" name="bankDetails.accountName">
+                </div>
+                
+                <div class="col-md-6 mb-3">
+                    <label for="accountNumber" class="form-label">Account Number</label>
+                    <input type="text" class="form-control" id="accountNumber" name="bankDetails.accountNumber">
+                </div>
+                
+                <div class="col-md-6 mb-3">
+                    <label for="iban" class="form-label">IBAN</label>
+                    <input type="text" class="form-control" id="iban" name="bankDetails.iban">
+                </div>
+                
+                <div class="col-md-6 mb-3">
+                    <label for="swiftCode" class="form-label">SWIFT/BIC Code</label>
+                    <input type="text" class="form-control" id="swiftCode" name="bankDetails.swiftCode">
+                </div>
+            </div>
+            
+            <div class="row mb-4">
+                <div class="col-md-12">
+                    <h3>Purchase Order Settings</h3>
+                    <hr>
+                </div>
+                
+                <div class="col-md-6 mb-3">
+                    <label for="poPrefix" class="form-label">PO Number Prefix</label>
+                    <input type="text" class="form-control" id="poPrefix" name="poSettings.prefix" value="PO-">
+                </div>
+                
+                <div class="col-md-6 mb-3">
+                    <label for="defaultCurrency" class="form-label">Default Currency</label>
+                    <select class="form-select" id="defaultCurrency" name="poSettings.defaultCurrency">
+                        <option value="USD">USD - US Dollar</option>
+                        <option value="EUR">EUR - Euro</option>
+                        <option value="GBP">GBP - British Pound</option>
+                        <option value="CAD">CAD - Canadian Dollar</option>
+                        <option value="AUD">AUD - Australian Dollar</option>
+                        <option value="JPY">JPY - Japanese Yen</option>
+                    </select>
+                </div>
+                
+                <div class="col-md-6 mb-3">
+                    <label for="defaultPaymentTerms" class="form-label">Default Payment Terms</label>
+                    <select class="form-select" id="defaultPaymentTerms" name="poSettings.defaultPaymentTerms">
+                        <option value="Net 30">Net 30 days</option>
+                        <option value="Net 15">Net 15 days</option>
+                        <option value="Net 7">Net 7 days</option>
+                        <option value="Due on Receipt">Due on Receipt</option>
+                    </select>
+                </div>
+                
+                <div class="col-md-12 mb-3">
+                    <label for="termsAndConditions" class="form-label">Terms and Conditions</label>
+                    <textarea class="form-control" id="termsAndConditions" name="poSettings.termsAndConditions" rows="5"></textarea>
+                </div>
+            </div>
+            
+            <div class="d-flex justify-content-between mb-5">
+                <a href="/suppliers" class="btn btn-secondary">Back to Supplier Management</a>
+                <button type="submit" class="btn btn-primary">Save Company Information</button>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', async ()
+
+                                  Here's the rest of the JavaScript code for the company-info.html file that follows after your snippet:
+
+```javascript
+document.addEventListener('DOMContentLoaded', async () => {
+    // Get shop parameter from URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const shop = urlParams.get('shop') || 'cycle1-test.myshopify.com';
+    
+    // Fetch existing company information
+    try {
+        const response = await fetch(`/api/company-info?shop=${encodeURIComponent(shop)}`);
+        
+        if (response.ok) {
+            const companyInfo = await response.json();
+            
+            // Populate form with existing data
+            document.getElementById('name').value = companyInfo.name || '';
+            document.getElementById('email').value = companyInfo.email || '';
+            document.getElementById('phone').value = companyInfo.phone || '';
+            document.getElementById('fax').value = companyInfo.fax || '';
+            document.getElementById('website').value = companyInfo.website || '';
+            document.getElementById('logo').value = companyInfo.logo || '';
+            document.getElementById('address').value = companyInfo.address || '';
+            document.getElementById('city').value = companyInfo.city || '';
+            document.getElementById('state').value = companyInfo.state || '';
+            document.getElementById('zipCode').value = companyInfo.zipCode || '';
+            document.getElementById('country').value = companyInfo.country || '';
+            document.getElementById('vatNumber').value = companyInfo.vatNumber || '';
+            document.getElementById('registrationNumber').value = companyInfo.registrationNumber || '';
+            
+            // Bank details
+            if (companyInfo.bankDetails) {
+                document.getElementById('bankName').value = companyInfo.bankDetails.bankName || '';
+                document.getElementById('accountName').value = companyInfo.bankDetails.accountName || '';
+                document.getElementById('accountNumber').value = companyInfo.bankDetails.accountNumber || '';
+                document.getElementById('iban').value = companyInfo.bankDetails.iban || '';
+                document.getElementById('swiftCode').value = companyInfo.bankDetails.swiftCode || '';
+            }
+            
+            // PO settings
+            if (companyInfo.poSettings) {
+                document.getElementById('poPrefix').value = companyInfo.poSettings.prefix || 'PO-';
+                document.getElementById('defaultCurrency').value = companyInfo.poSettings.defaultCurrency || 'USD';
+                document.getElementById('defaultPaymentTerms').value = companyInfo.poSettings.defaultPaymentTerms || 'Net 30';
+                document.getElementById('termsAndConditions').value = companyInfo.poSettings.termsAndConditions || '';
+            }
+        }
+    } catch (error) {
+        console.error('Error fetching company information:', error);
+    }
+    
+    // Handle form submission
+    document.getElementById('companyInfoForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        // Collect form data
+        const formData = new FormData(e.target);
+        const companyData = {
+            name: formData.get('name'),
+            email: formData.get('email'),
+            phone: formData.get('phone'),
+            fax: formData.get('fax'),
+            website: formData.get('website'),
+            logo: formData.get('logo'),
+            address: formData.get('address'),
+            city: formData.get('city'),
+            state: formData.get('state'),
+            zipCode: formData.get('zipCode'),
+            country: formData.get('country'),
+            vatNumber: formData.get('vatNumber'),
+            registrationNumber: formData.get('registrationNumber'),
+            bankDetails: {
+                bankName: formData.get('bankDetails.bankName'),
+                accountName: formData.get('bankDetails.accountName'),
+                accountNumber: formData.get('bankDetails.accountNumber'),
+                iban: formData.get('bankDetails.iban'),
+                swiftCode: formData.get('bankDetails.swiftCode')
+            },
+            poSettings: {
+                prefix: formData.get('poSettings.prefix'),
+                defaultCurrency: formData.get('poSettings.defaultCurrency'),
+                defaultPaymentTerms: formData.get('poSettings.defaultPaymentTerms'),
+                termsAndConditions: formData.get('poSettings.termsAndConditions')
+            }
+        };
+        
+        try {
+            // Save company information
+            const response = await fetch(`/api/company-info?shop=${encodeURIComponent(shop)}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(companyData)
+            });
+            
+            if (response.ok) {
+                alert('Company information saved successfully!');
+            } else {
+                const error = await response.json();
+                alert(`Error: ${error.message || 'Failed to save company information'}`);
+            }
+        } catch (error) {
+            console.error('Error saving company information:', error);
+            alert('Failed to save company information. Please try again.');
+        }
+    });
+});
+    </script>
+</body>
+</html>
+```
