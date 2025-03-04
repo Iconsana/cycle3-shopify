@@ -1,16 +1,11 @@
+// src/services/metafields.js
 import shopify from '../../config/shopify.js';
 
 // Metafield namespace and keys
-// Update these values in src/services/metafields.js
 const NAMESPACE = 'cycle3_supplier';
-const KEY = 'suppliers';
-
-// When writing to metafields, use this exact format:
-const metafieldData = {
-  namespace: NAMESPACE,
-  key: KEY,
-  value: JSON.stringify(suppliers), // Array of supplier objects
-  type: 'json'
+const KEYS = {
+  SUPPLIERS: 'suppliers',
+  PRIMARY_SUPPLIER: 'primary_supplier'
 };
 
 /**
