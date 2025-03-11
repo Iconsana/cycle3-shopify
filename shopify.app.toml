@@ -1,0 +1,15 @@
+name = "Multi-Supplier Management"
+client_id = "e617915b661dd5c6e216dcbcae5f7985"
+application_url = "https://cycle3-shopify.onrender.com"
+
+[build]
+dev_store_url = "cycle1-test.myshopify.com"
+
+[auth]
+redirect_urls = ["https://cycle3-shopify.onrender.com/auth/callback"]
+
+[webhooks]
+api_version = "2024-01"
+
+[embedded]
+enabled = true
