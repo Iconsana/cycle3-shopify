@@ -5,12 +5,12 @@ export async function registerWebhooks() {
   const webhooks = [
     {
       path: '/webhooks/orders/create',
-      topic: 'ORDERS_CREATE',
+      topic: 'orders/create',  // Changed from ORDERS_CREATE
       deliveryMethod: 'HTTP',
     },
     {
       path: '/webhooks/orders/cancelled',
-      topic: 'ORDERS_CANCELLED',
+      topic: 'orders/cancelled',  // Changed from ORDERS_CANCELLED
       deliveryMethod: 'HTTP',
     }
   ];
