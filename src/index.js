@@ -285,4 +285,38 @@ app.use((req, res) => {
   });
 })();
 
+// Add this to your src/index.js file, right after the other API routes
+
+// API route for product metafields
+app.get('/api/products/:productId/metafields', async (req, res) => {
+  try {
+    const { productId } = req.params;
+    
+    // For MVP testing, create a client using the app's access token
+    const client = new shopify.clients.Rest({
+      session: {
+        shop: process.env.SHOPIFY_SHOP_NAME,
+        accessToken: process.env.SHOPIFY_ACCESS_TOKEN
+      }
+    });
+
+    const response = await client.get({
+      path: `products/${productId}/metafields`,
+      query: {
+        namespace: 'cycle3_supplier'
+      }
+    });
+
+    // Return the metafields
+    res.json(response.body.metafields || []);
+    
+  } catch (error) {
+    console.error('Error fetching product metafields:', error);
+    res.status(500).json({
+      error: 'Failed to fetch product metafields',
+      message: error.message
+    });
+  }
+});
+
 export default app;
