@@ -153,7 +153,7 @@ app.post('/api/products/:productId/suppliers', (req, res) => {
   res.status(201).json(newSupplier);
 });
 
-// API route for product metafields - Properly placed with other API routes
+// API route for product metafields - CORRECTLY PLACED HERE WITH OTHER API ROUTES
 app.get('/api/products/:productId/metafields', async (req, res) => {
   try {
     const { productId } = req.params;
