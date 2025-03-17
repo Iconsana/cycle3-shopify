@@ -3,95 +3,59 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Supplier Management</title>
+    <title>Multi-Supplier Management</title>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-gray-100">
     <div class="container mx-auto px-4 py-8">
-        <h1 class="text-3xl font-bold mb-8">Supplier Management System</h1>
-        
-        <!-- Add Supplier Form -->
+        <h1 class="text-3xl font-bold mb-8">Multi-Supplier Management</h1>
         <div class="bg-white p-6 rounded-lg shadow-md mb-8">
-            <h2 class="text-xl font-semibold mb-4">Add New Supplier</h2>
-            <form id="supplierForm" class="space-y-4">
-                <div>
-                    <label class="block text-sm font-medium text-gray-700">Name</label>
-                    <input type="text" name="name" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2" required>
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700">Email</label>
-                    <input type="email" name="email" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2" required>
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700">Lead Time (days)</label>
-                    <input type="number" name="leadTime" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2" required>
-                </div>
-                <button type="submit" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
-                    Add Supplier
-                </button>
-            </form>
+            <h2 class="text-xl font-semibold mb-4">App Status</h2>
+            <div id="status" class="p-4 bg-green-100 rounded">
+                Successfully loaded static content! The app is working.
+            </div>
+            
+            <div class="mt-6">
+                <h3 class="font-medium mb-2">Available Pages:</h3>
+                <ul class="space-y-2 list-disc pl-6">
+                    <li><a href="/test" class="text-blue-600 hover:underline">Test Interface</a></li>
+                    <li><a href="/suppliers" class="text-blue-600 hover:underline">Supplier Management</a></li>
+                    <li><a href="/test-connection" class="text-blue-600 hover:underline">Test API Connection</a></li>
+                </ul>
+            </div>
         </div>
-
-        <!-- Suppliers List -->
+        
         <div class="bg-white p-6 rounded-lg shadow-md">
-            <h2 class="text-xl font-semibold mb-4">Current Suppliers</h2>
-            <div id="suppliersList" class="space-y-4">
-                <!-- Suppliers will be listed here -->
+            <h2 class="text-xl font-semibold mb-4">API Status Check</h2>
+            <button id="checkApi" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
+                Check API Status
+            </button>
+            <div id="apiResult" class="mt-4 p-4 bg-gray-100 rounded hidden">
+                Checking API...
             </div>
         </div>
     </div>
 
     <script>
-        // Form submission
-        document.getElementById('supplierForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const formData = new FormData(e.target);
-            const data = {
-                name: formData.get('name'),
-                email: formData.get('email'),
-                leadTime: parseInt(formData.get('leadTime'))
-            };
-
+        // Test API connection
+        document.getElementById('checkApi').addEventListener('click', async () => {
+            const resultDiv = document.getElementById('apiResult');
+            resultDiv.classList.remove('hidden');
+            resultDiv.innerText = 'Checking API...';
+            
             try {
-                const response = await fetch('/api/suppliers', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify(data)
-                });
+                const response = await fetch('/test-connection');
+                const data = await response.json();
                 
-                if (response.ok) {
-                    e.target.reset();
-                    loadSuppliers();
-                }
+                resultDiv.innerText = `API Response: ${JSON.stringify(data, null, 2)}`;
+                resultDiv.classList.add('bg-green-100');
+                resultDiv.classList.remove('bg-red-100', 'bg-gray-100');
             } catch (error) {
-                console.error('Error adding supplier:', error);
+                resultDiv.innerText = `Error: ${error.message}`;
+                resultDiv.classList.add('bg-red-100');
+                resultDiv.classList.remove('bg-green-100', 'bg-gray-100');
             }
         });
-
-        // Load suppliers
-        async function loadSuppliers() {
-            try {
-                const response = await fetch('/api/suppliers');
-                const suppliers = await response.json();
-                
-                const suppliersList = document.getElementById('suppliersList');
-                suppliersList.innerHTML = suppliers.map(supplier => `
-                    <div class="border p-4 rounded">
-                        <h3 class="font-semibold">${supplier.name}</h3>
-                        <p class="text-gray-600">${supplier.email}</p>
-                        <p class="text-sm">Lead Time: ${supplier.leadTime} days</p>
-                        <p class="text-xs text-gray-500">ID: ${supplier.id}</p>
-                    </div>
-                `).join('');
-            } catch (error) {
-                console.error('Error loading suppliers:', error);
-            }
-        }
-
-        // Initial load
-        loadSuppliers();
     </script>
 </body>
 </html>
