@@ -1,10 +1,11 @@
+// Update the static file serving in src/index.js
+
 import express from 'express';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import webhookRoutes from './routes/webhooks.js';
 import { connectDB } from './database.js';
-import mongoose from 'mongoose';
 import { registerWebhooks } from './services/webhook-registration.js';
 import shopify from '../config/shopify.js';
 
@@ -15,7 +16,6 @@ const __dirname = path.dirname(__filename);
 // Load environment variables
 dotenv.config();
 
-// Add this after your imports in index.js
 // Debug logging
 console.log('Environment Check:', {
   hasShopifyKey: !!process.env.SHOPIFY_API_KEY,
@@ -31,8 +31,8 @@ connectDB();
 const app = express();
 const port = process.env.PORT || 10000;
 
-// Debug logging for paths
-const publicPath = path.join(__dirname, '../public');
+// Define paths properly - going up one directory from src to reach public
+const publicPath = path.join(__dirname, '..', 'public');
 console.log('Public directory path:', publicPath);
 
 // In-memory storage for MVP testing
@@ -49,12 +49,21 @@ app.use((req, res, next) => {
   next();
 });
 
-// Serve static files from public directory
+// Serve static files from public directory - ENSURE THIS COMES BEFORE ROUTES
 app.use(express.static(publicPath));
 
-// Basic health check and test page
+// Basic health check endpoint - KEEPING THIS SIMPLE
+app.get('/health', (req, res) => {
+  res.status(200).json({ 
+    status: 'healthy',
+    message: 'Multi-Supplier Management App Running'
+  });
+});
+
+// Root route - serve index.html or API status based on content type
 app.get('/', (req, res) => {
-  if (req.headers.accept?.includes('text/html')) {
+  if (req.accepts('html')) {
+    // Send the actual file instead of 'sendFile'
     res.sendFile(path.join(publicPath, 'index.html'));
   } else {
     res.status(200).json({ 
@@ -62,6 +71,11 @@ app.get('/', (req, res) => {
       message: 'Multi-Supplier Management App Running'
     });
   }
+});
+
+// Special route for test page
+app.get('/test', (req, res) => {
+  res.sendFile(path.join(publicPath, 'test.html'));
 });
 
 // Supplier Management UI Route
@@ -142,7 +156,7 @@ app.post('/api/products/:productId/suppliers', (req, res) => {
     id: Date.now().toString(),
     productId,
     supplierId: supplierData.supplierId,
-    supplierName: supplierName || 'Unknown',
+    supplierName: supplierName || supplierData.name || 'Unknown',
     priority: parseInt(supplierData.priority) || 1,
     price: parseFloat(supplierData.price),
     stockLevel: parseInt(supplierData.stockLevel) || 0,
@@ -153,7 +167,7 @@ app.post('/api/products/:productId/suppliers', (req, res) => {
   res.status(201).json(newSupplier);
 });
 
-// API route for product metafields - CORRECTLY PLACED HERE WITH OTHER API ROUTES
+// API route for product metafields
 app.get('/api/products/:productId/metafields', async (req, res) => {
   try {
     const { productId } = req.params;
@@ -293,12 +307,18 @@ app.use((err, req, res, next) => {
   });
 });
 
-// 404 handler
+// 404 handler - Return index.html for client-side routing
 app.use((req, res) => {
-  res.status(404).json({
-    status: 'error',
-    message: 'Not Found'
-  });
+  // If API route, return 404 JSON
+  if (req.path.startsWith('/api')) {
+    return res.status(404).json({
+      status: 'error',
+      message: 'API Endpoint Not Found'
+    });
+  }
+  
+  // For all other routes, return the main index.html
+  res.sendFile(path.join(publicPath, 'index.html'));
 });
 
 // Register webhooks and start server
