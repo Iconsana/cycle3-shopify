@@ -8,7 +8,18 @@
 </head>
 <body class="bg-gray-100">
     <div class="container mx-auto px-4 py-8 max-w-4xl">
-        <h1 class="text-2xl font-bold mb-8">Multi-Supplier Management Test</h1>
+        <h1 class="text-2xl font-bold mb-8">Multi-Supplier Management Test Interface</h1>
+
+        <!-- Debug Panel -->
+        <div class="bg-white rounded-lg shadow-md p-6 mb-8">
+            <h2 class="text-xl font-semibold mb-4">API Connection Test</h2>
+            <button id="testConnection" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
+                Test API Connection
+            </button>
+            <div id="connectionResult" class="mt-4 p-4 bg-gray-100 rounded hidden">
+                Checking connection...
+            </div>
+        </div>
 
         <!-- Add Supplier Form -->
         <div class="bg-white rounded-lg shadow-md p-6 mb-8">
@@ -56,6 +67,32 @@
             </div>
             <div id="suppliersList" class="space-y-4"></div>
         </div>
+        
+        <!-- API Debug Console -->
+        <div class="bg-white rounded-lg shadow-md p-6 mt-8">
+            <h2 class="text-xl font-semibold mb-4">API Debug Console</h2>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium mb-1">API Endpoint</label>
+                    <select id="debugEndpoint" class="w-full p-2 border rounded">
+                        <option value="/api/suppliers">GET /api/suppliers</option>
+                        <option value="/api/products/{productId}/suppliers">GET /api/products/{productId}/suppliers</option>
+                        <option value="/test-connection">GET /test-connection</option>
+                    </select>
+                </div>
+                <div id="productIdContainer">
+                    <label class="block text-sm font-medium mb-1">Product ID (if needed)</label>
+                    <input type="text" id="debugProductId" value="df1730sl-20a" class="w-full p-2 border rounded">
+                </div>
+                <button id="sendRequest" class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600">
+                    Send Request
+                </button>
+                <div>
+                    <label class="block text-sm font-medium mb-1">Response</label>
+                    <pre id="apiResponse" class="bg-gray-100 p-4 rounded-lg text-sm overflow-auto h-60 w-full"></pre>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script>
@@ -64,6 +101,25 @@
             alert(message);
             console.error(message);
         }
+
+        // Test API connection
+        document.getElementById('testConnection').addEventListener('click', async () => {
+            const resultDiv = document.getElementById('connectionResult');
+            resultDiv.classList.remove('hidden');
+            resultDiv.innerText = 'Checking connection...';
+            resultDiv.className = 'mt-4 p-4 bg-gray-100 rounded';
+            
+            try {
+                const response = await fetch('/test-connection');
+                const data = await response.json();
+                
+                resultDiv.innerText = `SUCCESS: API is connected!\n\nResponse: ${JSON.stringify(data, null, 2)}`;
+                resultDiv.className = 'mt-4 p-4 bg-green-100 rounded';
+            } catch (error) {
+                resultDiv.innerText = `FAILED: ${error.message}`;
+                resultDiv.className = 'mt-4 p-4 bg-red-100 rounded';
+            }
+        });
 
         // Add Supplier
         document.getElementById('addSupplierForm').addEventListener('submit', async (e) => {
@@ -97,6 +153,9 @@
                 document.getElementById('name').value = '';
                 document.getElementById('price').value = '';
                 document.getElementById('stockLevel').value = '';
+                
+                // Show success message
+                alert('Supplier added successfully!');
                 
                 // Reload suppliers list
                 await loadSuppliers();
@@ -147,6 +206,46 @@
                 showError('Error loading suppliers: ' + error.message);
             }
         }
+
+        // API Debug Console
+        document.getElementById('debugEndpoint').addEventListener('change', () => {
+            const endpoint = document.getElementById('debugEndpoint').value;
+            const productIdContainer = document.getElementById('productIdContainer');
+            
+            if (endpoint.includes('{productId}')) {
+                productIdContainer.style.display = 'block';
+            } else {
+                productIdContainer.style.display = 'none';
+            }
+        });
+
+        document.getElementById('sendRequest').addEventListener('click', async () => {
+            const endpoint = document.getElementById('debugEndpoint').value;
+            const productId = document.getElementById('debugProductId').value;
+            const responseEl = document.getElementById('apiResponse');
+            
+            responseEl.innerText = 'Sending request...';
+            
+            let url = endpoint;
+            if (url.includes('{productId}')) {
+                url = url.replace('{productId}', productId);
+            }
+            
+            try {
+                const response = await fetch(url);
+                const contentType = response.headers.get('content-type');
+                
+                if (contentType && contentType.includes('application/json')) {
+                    const data = await response.json();
+                    responseEl.innerText = JSON.stringify(data, null, 2);
+                } else {
+                    const text = await response.text();
+                    responseEl.innerText = text;
+                }
+            } catch (error) {
+                responseEl.innerText = `Error: ${error.message}`;
+            }
+        });
 
         // Initial load
         loadSuppliers();
