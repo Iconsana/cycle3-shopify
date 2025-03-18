@@ -1,5 +1,3 @@
-// Update the static file serving in src/index.js
-
 import express from 'express';
 import dotenv from 'dotenv';
 import path from 'path';
@@ -26,7 +24,11 @@ console.log('Environment Check:', {
 });
 
 // Connect to MongoDB with improved error handling
-connectDB();
+try {
+  await connectDB();
+} catch (error) {
+  console.error('MongoDB connection error but continuing app startup:', error);
+}
 
 const app = express();
 const port = process.env.PORT || 10000;
@@ -52,7 +54,7 @@ app.use((req, res, next) => {
 // Serve static files from public directory - ENSURE THIS COMES BEFORE ROUTES
 app.use(express.static(publicPath));
 
-// Basic health check endpoint - KEEPING THIS SIMPLE
+// Basic health check endpoint
 app.get('/health', (req, res) => {
   res.status(200).json({ 
     status: 'healthy',
@@ -63,7 +65,6 @@ app.get('/health', (req, res) => {
 // Root route - serve index.html or API status based on content type
 app.get('/', (req, res) => {
   if (req.accepts('html')) {
-    // Send the actual file instead of 'sendFile'
     res.sendFile(path.join(publicPath, 'index.html'));
   } else {
     res.status(200).json({ 
@@ -85,92 +86,125 @@ app.get('/suppliers', (req, res) => {
 
 // API Routes for Suppliers
 app.get('/api/suppliers', (req, res) => {
+  console.log('GET /api/suppliers - returning:', app.locals.suppliers?.length || 0, 'suppliers');
   res.json(app.locals.suppliers || []);
 });
 
 app.post('/api/suppliers', (req, res) => {
-  const supplier = {
-    id: Date.now().toString(),
-    name: req.body.name,
-    email: req.body.email,
-    leadTime: parseInt(req.body.leadTime) || 1,
-    apiType: req.body.apiType || 'email',
-    status: 'active',
-    createdAt: new Date().toISOString()
-  };
-  
-  app.locals.suppliers.push(supplier);
-  res.status(201).json(supplier);
+  try {
+    const supplier = {
+      id: Date.now().toString(),
+      name: req.body.name,
+      email: req.body.email,
+      leadTime: parseInt(req.body.leadTime) || 1,
+      apiType: req.body.apiType || 'email',
+      status: 'active',
+      createdAt: new Date().toISOString()
+    };
+    
+    app.locals.suppliers.push(supplier);
+    console.log('Added new supplier:', supplier.name);
+    res.status(201).json(supplier);
+  } catch (error) {
+    console.error('Error adding supplier:', error);
+    res.status(500).json({ error: 'Error adding supplier', message: error.message });
+  }
 });
 
 // API Routes for Product Suppliers
 app.get('/api/product-suppliers', (req, res) => {
-  const productId = req.query.productId;
-  let result = app.locals.productSuppliers || [];
-  
-  if (productId) {
-    result = result.filter(ps => ps.productId === productId);
+  try {
+    const productId = req.query.productId;
+    let result = app.locals.productSuppliers || [];
+    
+    if (productId) {
+      result = result.filter(ps => ps.productId === productId);
+    }
+    
+    console.log(`GET /api/product-suppliers - returning: ${result.length} suppliers`);
+    res.json(result);
+  } catch (error) {
+    console.error('Error fetching product suppliers:', error);
+    res.status(500).json({ error: 'Error fetching product suppliers', message: error.message });
   }
-  
-  res.json(result);
 });
 
 app.post('/api/product-suppliers', (req, res) => {
-  const productSupplier = {
-    id: Date.now().toString(),
-    productId: req.body.productId,
-    productName: req.body.productName || req.body.productId,
-    supplierId: req.body.supplierId,
-    supplierName: app.locals.suppliers.find(s => s.id === req.body.supplierId)?.name || 'Unknown',
-    priority: parseInt(req.body.priority) || 1,
-    price: parseFloat(req.body.price),
-    stockLevel: parseInt(req.body.stockLevel) || 0,
-    lastUpdated: new Date().toISOString()
-  };
-  
-  app.locals.productSuppliers.push(productSupplier);
-  res.status(201).json(productSupplier);
+  try {
+    const productSupplier = {
+      id: Date.now().toString(),
+      productId: req.body.productId,
+      productName: req.body.productName || req.body.productId,
+      supplierId: req.body.supplierId,
+      supplierName: app.locals.suppliers.find(s => s.id === req.body.supplierId)?.name || 'Unknown',
+      priority: parseInt(req.body.priority) || 1,
+      price: parseFloat(req.body.price),
+      stockLevel: parseInt(req.body.stockLevel) || 0,
+      lastUpdated: new Date().toISOString()
+    };
+    
+    app.locals.productSuppliers.push(productSupplier);
+    console.log('Added new product supplier for product:', productSupplier.productId);
+    res.status(201).json(productSupplier);
+  } catch (error) {
+    console.error('Error adding product supplier:', error);
+    res.status(500).json({ error: 'Error adding product supplier', message: error.message });
+  }
 });
 
 // API routes for specific product's suppliers
 app.get('/api/products/:productId/suppliers', (req, res) => {
-  const { productId } = req.params;
-  const suppliers = app.locals.productSuppliers.filter(ps => ps.productId === productId) || [];
-  res.json(suppliers);
+  try {
+    const { productId } = req.params;
+    const suppliers = app.locals.productSuppliers.filter(ps => ps.productId === productId) || [];
+    console.log(`GET /api/products/${productId}/suppliers - returning: ${suppliers.length} suppliers`);
+    res.json(suppliers);
+  } catch (error) {
+    console.error(`Error fetching suppliers for product ${req.params.productId}:`, error);
+    res.status(500).json({ error: 'Error fetching suppliers', message: error.message });
+  }
 });
 
 app.post('/api/products/:productId/suppliers', (req, res) => {
-  const { productId } = req.params;
-  const supplierData = req.body;
+  try {
+    const { productId } = req.params;
+    const supplierData = req.body;
+    console.log(`POST /api/products/${productId}/suppliers - data:`, supplierData);
 
-  // Find the supplier name if supplierId is provided
-  let supplierName = supplierData.name;
-  if (supplierData.supplierId) {
-    const supplier = app.locals.suppliers.find(s => s.id === supplierData.supplierId);
-    if (supplier) {
-      supplierName = supplier.name;
+    // Find the supplier name if supplierId is provided
+    let supplierName = supplierData.name;
+    if (supplierData.supplierId) {
+      const supplier = app.locals.suppliers.find(s => s.id === supplierData.supplierId);
+      if (supplier) {
+        supplierName = supplier.name;
+      }
     }
+
+    const newSupplier = {
+      id: Date.now().toString(),
+      productId,
+      supplierId: supplierData.supplierId,
+      supplierName: supplierName || supplierData.name || 'Unknown',
+      priority: parseInt(supplierData.priority) || 1,
+      price: parseFloat(supplierData.price),
+      stockLevel: parseInt(supplierData.stockLevel) || 0,
+      createdAt: new Date().toISOString()
+    };
+
+    app.locals.productSuppliers.push(newSupplier);
+    console.log('Added new supplier for product:', productId);
+    res.status(201).json(newSupplier);
+  } catch (error) {
+    console.error(`Error adding supplier for product ${req.params.productId}:`, error);
+    res.status(500).json({ error: 'Error adding supplier', message: error.message });
   }
-
-  const newSupplier = {
-    id: Date.now().toString(),
-    productId,
-    supplierId: supplierData.supplierId,
-    supplierName: supplierName || supplierData.name || 'Unknown',
-    priority: parseInt(supplierData.priority) || 1,
-    price: parseFloat(supplierData.price),
-    stockLevel: parseInt(supplierData.stockLevel) || 0,
-    createdAt: new Date().toISOString()
-  };
-
-  app.locals.productSuppliers.push(newSupplier);
-  res.status(201).json(newSupplier);
 });
 
 // API route for product metafields
 app.get('/api/products/:productId/metafields', async (req, res) => {
   try {
     const { productId } = req.params;
+    console.log(`GET /api/products/${productId}/metafields`);
     
     // For MVP testing, create a client using the app's access token
     const client = new shopify.clients.Rest({
@@ -188,6 +222,7 @@ app.get('/api/products/:productId/metafields', async (req, res) => {
     });
 
     // Return the metafields
+    console.log(`Found ${response.body.metafields?.length || 0} metafields`);
     res.json(response.body.metafields || []);
     
   } catch (error) {
@@ -201,11 +236,19 @@ app.get('/api/products/:productId/metafields', async (req, res) => {
 
 // Purchase Order routes
 app.get('/api/purchase-orders', (req, res) => {
-  res.json(app.locals.purchaseOrders || []);
+  try {
+    console.log(`GET /api/purchase-orders - returning: ${app.locals.purchaseOrders?.length || 0} orders`);
+    res.json(app.locals.purchaseOrders || []);
+  } catch (error) {
+    console.error('Error fetching purchase orders:', error);
+    res.status(500).json({ error: 'Error fetching purchase orders', message: error.message });
+  }
 });
 
 app.post('/api/purchase-orders/simulate', (req, res) => {
   try {
+    console.log('POST /api/purchase-orders/simulate');
+    
     // Implement order simulation with fallback logic
     const order = {
       id: 'ORD-' + Date.now(),
@@ -273,6 +316,7 @@ app.post('/api/purchase-orders/simulate', (req, res) => {
     
     // Add POs to storage
     app.locals.purchaseOrders.push(...pos);
+    console.log(`Generated ${pos.length} purchase orders`);
     
     res.status(201).json({
       orderId: order.id,
@@ -292,9 +336,11 @@ app.use('/webhooks', webhookRoutes);
 
 // Test connection route
 app.get('/test-connection', (req, res) => {
+  console.log('GET /test-connection');
   res.status(200).json({ 
     status: 'connected',
-    message: 'API is connected and working properly'
+    message: 'API is connected and working properly',
+    time: new Date().toISOString()
   });
 });
 
@@ -311,13 +357,15 @@ app.use((err, req, res, next) => {
 app.use((req, res) => {
   // If API route, return 404 JSON
   if (req.path.startsWith('/api')) {
+    console.log(`404 API route not found: ${req.path}`);
     return res.status(404).json({
       status: 'error',
       message: 'API Endpoint Not Found'
     });
   }
   
-  // For all other routes, return the main index.html
+  // For all other routes, return the main index.html (for SPA routing)
+  console.log(`Serving index.html for path: ${req.path}`);
   res.sendFile(path.join(publicPath, 'index.html'));
 });
 
@@ -325,9 +373,8 @@ app.use((req, res) => {
 (async () => {
   try {
     await registerWebhooks();
-    console.log('Webhooks registered successfully');
   } catch (error) {
-    console.error('Error registering webhooks:', error);
+    console.error('Error registering webhooks but continuing app startup:', error);
   }
   
   // Start the server
