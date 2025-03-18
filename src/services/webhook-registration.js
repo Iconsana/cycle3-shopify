@@ -5,12 +5,12 @@ export async function registerWebhooks() {
   const webhooks = [
     {
       path: '/webhooks/orders/create',
-      topic: 'orders/create',  // Changed from ORDERS_CREATE
+      topic: 'orders/create',
       deliveryMethod: 'HTTP',
     },
     {
       path: '/webhooks/orders/cancelled',
-      topic: 'orders/cancelled',  // Changed from ORDERS_CANCELLED
+      topic: 'orders/cancelled',
       deliveryMethod: 'HTTP',
     }
   ];
@@ -23,21 +23,58 @@ export async function registerWebhooks() {
       }
     });
 
+    // First, get existing webhooks
+    const response = await client.get({
+      path: 'webhooks',
+    });
+    
+    const existingWebhooks = response.body.webhooks || [];
+    console.log(`Found ${existingWebhooks.length} existing webhooks`);
+    
+    let registered = 0;
+    let skipped = 0;
+
     for (const webhook of webhooks) {
-      const response = await client.post({
-        path: 'webhooks',
-        data: {
-          webhook: {
-            topic: webhook.topic,
-            address: `${process.env.APP_URL}${webhook.path}`,
-            format: 'json'
+      // Check if webhook already exists with same topic and address
+      const webhookAddress = `${process.env.APP_URL}${webhook.path}`;
+      const exists = existingWebhooks.some(w => 
+        w.topic === webhook.topic && 
+        w.address === webhookAddress
+      );
+      
+      if (exists) {
+        console.log(`Skipping ${webhook.topic} webhook - already exists`);
+        skipped++;
+        continue;
+      }
+      
+      try {
+        // Register new webhook
+        await client.post({
+          path: 'webhooks',
+          data: {
+            webhook: {
+              topic: webhook.topic,
+              address: webhookAddress,
+              format: 'json'
+            }
           }
+        });
+        console.log(`Registered ${webhook.topic} webhook`);
+        registered++;
+      } catch (error) {
+        if (error.code === 422) {
+          console.log(`Webhook ${webhook.topic} already exists but wasn't detected in our list`);
+          skipped++;
+        } else {
+          throw error;
         }
-      });
-      console.log(`Registered ${webhook.topic} webhook`);
+      }
     }
+    
+    console.log(`Webhook registration summary: ${registered} registered, ${skipped} skipped`);
   } catch (error) {
     console.error('Error registering webhooks:', error);
-    throw error;
+    // Don't throw the error, just log it - let the app continue to run
   }
 }
