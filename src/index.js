@@ -6,6 +6,8 @@ import webhookRoutes from './routes/webhooks.js';
 import { connectDB } from './database.js';
 import { registerWebhooks } from './services/webhook-registration.js';
 import shopify from '../config/shopify.js';
+// ADDED: Import product service
+import { syncProducts, fetchAllProducts } from './services/product-service.js';
 
 // ES Module fix for __dirname
 const __filename = fileURLToPath(import.meta.url);
@@ -23,13 +25,25 @@ console.log('Environment Check:', {
   hasMongoUri: !!process.env.MONGODB_URI
 });
 
-// Connect to MongoDB with improved error handling
-try {
-  await connectDB();
-} catch (error) {
-  console.error('MongoDB connection error but continuing app startup:', error);
+// Try to connect to MongoDB, but continue even if it fails
+// This makes MongoDB optional for the MVP testing phase
+let dbConnection = null;
+if (process.env.MONGODB_URI) {
+  try {
+    dbConnection = await connectDB();
+    if (dbConnection) {
+      console.log('MongoDB connected successfully');
+    } else {
+      console.log('MongoDB connection failed, but continuing with in-memory storage');
+    }
+  } catch (error) {
+    console.error('MongoDB connection error, continuing with in-memory storage:', error.message);
+  }
+} else {
+  console.log('No MongoDB URI provided, using in-memory storage only');
 }
 
+// App setup
 const app = express();
 const port = process.env.PORT || 10000;
 
@@ -38,9 +52,11 @@ const publicPath = path.join(__dirname, '..', 'public');
 console.log('Public directory path:', publicPath);
 
 // In-memory storage for MVP testing
+app.locals.useInMemoryStorage = !dbConnection;
 app.locals.suppliers = [];
 app.locals.productSuppliers = [];
 app.locals.purchaseOrders = [];
+app.locals.products = []; // ADDED: Initialize products array
 
 // Middleware
 app.use(express.json());
@@ -58,7 +74,9 @@ app.use(express.static(publicPath));
 app.get('/health', (req, res) => {
   res.status(200).json({ 
     status: 'healthy',
-    message: 'Multi-Supplier Management App Running'
+    message: 'Multi-Supplier Management App Running',
+    storage: app.locals.useInMemoryStorage ? 'in-memory' : 'mongodb',
+    time: new Date().toISOString()
   });
 });
 
@@ -69,7 +87,8 @@ app.get('/', (req, res) => {
   } else {
     res.status(200).json({ 
       status: 'healthy',
-      message: 'Multi-Supplier Management App Running'
+      message: 'Multi-Supplier Management App Running',
+      storage: app.locals.useInMemoryStorage ? 'in-memory' : 'mongodb' 
     });
   }
 });
@@ -82,6 +101,11 @@ app.get('/test', (req, res) => {
 // Supplier Management UI Route
 app.get('/suppliers', (req, res) => {
   res.sendFile(path.join(publicPath, 'supplier-management.html'));
+});
+
+// ADDED: Product Management UI Route
+app.get('/products', (req, res) => {
+  res.sendFile(path.join(publicPath, 'product-management.html'));
 });
 
 // API Routes for Suppliers
@@ -108,6 +132,37 @@ app.post('/api/suppliers', (req, res) => {
   } catch (error) {
     console.error('Error adding supplier:', error);
     res.status(500).json({ error: 'Error adding supplier', message: error.message });
+  }
+});
+
+// ADDED: API Routes for Products
+app.get('/api/products', async (req, res) => {
+  try {
+    // If we don't have products in memory yet, fetch them
+    if (!app.locals.products || app.locals.products.length === 0) {
+      await syncProducts(app);
+    }
+    
+    console.log(`GET /api/products - returning: ${app.locals.products?.length || 0} products`);
+    res.json(app.locals.products || []);
+  } catch (error) {
+    console.error('Error fetching products:', error);
+    res.status(500).json({ error: 'Error fetching products', message: error.message });
+  }
+});
+
+// ADDED: API route to manually trigger product sync
+app.post('/api/products/sync', async (req, res) => {
+  try {
+    const products = await syncProducts(app);
+    console.log(`Synchronized ${products.length} products`);
+    res.json({ 
+      success: true, 
+      message: `Synchronized ${products.length} products` 
+    });
+  } catch (error) {
+    console.error('Error syncing products:', error);
+    res.status(500).json({ error: 'Error syncing products', message: error.message });
   }
 });
 
@@ -197,6 +252,49 @@ app.post('/api/products/:productId/suppliers', (req, res) => {
   } catch (error) {
     console.error(`Error adding supplier for product ${req.params.productId}:`, error);
     res.status(500).json({ error: 'Error adding supplier', message: error.message });
+  }
+});
+
+// ADDED: Get a specific product by ID
+app.get('/api/products/:productId', async (req, res) => {
+  try {
+    const { productId } = req.params;
+    
+    // If we don't have products in memory yet, fetch them
+    if (!app.locals.products || app.locals.products.length === 0) {
+      await syncProducts(app);
+    }
+    
+    const product = app.locals.products.find(p => p.id === productId);
+    
+    if (!product) {
+      // If not found in local cache, try to fetch directly from Shopify
+      try {
+        const client = new shopify.clients.Rest({
+          session: {
+            shop: process.env.SHOPIFY_SHOP_NAME,
+            accessToken: process.env.SHOPIFY_ACCESS_TOKEN
+          }
+        });
+        
+        const response = await client.get({
+          path: `products/${productId}`
+        });
+        
+        if (response.body.product) {
+          return res.json(response.body.product);
+        }
+      } catch (fetchError) {
+        console.error(`Error fetching product ${productId} from Shopify:`, fetchError);
+      }
+      
+      return res.status(404).json({ error: 'Product not found' });
+    }
+    
+    res.json(product);
+  } catch (error) {
+    console.error(`Error fetching product ${req.params.productId}:`, error);
+    res.status(500).json({ error: 'Error fetching product', message: error.message });
   }
 });
 
@@ -340,6 +438,7 @@ app.get('/test-connection', (req, res) => {
   res.status(200).json({ 
     status: 'connected',
     message: 'API is connected and working properly',
+    storage: app.locals.useInMemoryStorage ? 'in-memory' : 'mongodb',
     time: new Date().toISOString()
   });
 });
@@ -369,6 +468,17 @@ app.use((req, res) => {
   res.sendFile(path.join(publicPath, 'index.html'));
 });
 
+// ADDED: Initial product sync at startup
+(async () => {
+  try {
+    console.log('Starting initial product sync...');
+    await syncProducts(app);
+    console.log(`Successfully synchronized ${app.locals.products.length} products from Shopify`);
+  } catch (error) {
+    console.error('Initial product sync failed, but continuing app startup:', error.message);
+  }
+})();
+
 // Register webhooks and start server
 (async () => {
   try {
@@ -381,6 +491,7 @@ app.use((req, res) => {
   app.listen(port, () => {
     console.log(`Server running on port ${port}`);
     console.log(`Public directory serving from: ${publicPath}`);
+    console.log(`Storage mode: ${app.locals.useInMemoryStorage ? 'in-memory (MongoDB not connected)' : 'MongoDB'}`);
   });
 })();
 
