@@ -1,0 +1,237 @@
+<!-- public/product-management.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Product Supplier Management</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100">
+    <div class="container mx-auto px-4 py-8">
+        <div class="flex justify-between items-center mb-8">
+            <h1 class="text-2xl font-bold">Product Supplier Management</h1>
+            <div class="flex space-x-4">
+                <button id="syncProducts" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
+                    Sync Products
+                </button>
+                <a href="/suppliers" class="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600">
+                    Manage Suppliers
+                </a>
+                <a href="/" class="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600">
+                    Home
+                </a>
+            </div>
+        </div>
+        
+        <div class="bg-white rounded-lg shadow-md p-6 mb-8">
+            <h2 class="text-xl font-semibold mb-4">Your Shopify Products</h2>
+            <div id="syncStatus" class="mb-4 hidden"></div>
+            
+            <div id="productsList" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div class="animate-pulse bg-gray-100 p-4 rounded-lg h-40"></div>
+                <div class="animate-pulse bg-gray-100 p-4 rounded-lg h-40"></div>
+                <div class="animate-pulse bg-gray-100 p-4 rounded-lg h-40"></div>
+            </div>
+        </div>
+        
+        <div id="productDetail" class="bg-white rounded-lg shadow-md p-6 mb-8 hidden">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-semibold" id="productTitle">Product Details</h2>
+                <button id="closeDetail" class="text-gray-500 hover:text-gray-700">
+                    × Close
+                </button>
+            </div>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <h3 class="font-medium mb-2">Product Information</h3>
+                    <div id="productInfo" class="space-y-2">
+                        <!-- Product info will be populated here -->
+                    </div>
+                </div>
+                
+                <div>
+                    <div class="flex justify-between items-center mb-2">
+                        <h3 class="font-medium">Assigned Suppliers</h3>
+                        <button id="addSupplier" class="text-sm bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600">
+                            Add Supplier
+                        </button>
+                    </div>
+                    <div id="suppliersList" class="space-y-2">
+                        <!-- Suppliers will be populated here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div id="supplierForm" class="bg-white rounded-lg shadow-md p-6 mb-8 hidden">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-semibold">Add Supplier for <span id="formProductName"></span></h2>
+                <button id="closeForm" class="text-gray-500 hover:text-gray-700">
+                    × Close
+                </button>
+            </div>
+            
+            <form id="addSupplierForm" class="space-y-4">
+                <input type="hidden" id="formProductId">
+                
+                <div>
+                    <label class="block text-sm font-medium mb-1" for="supplierSelect">Select Supplier</label>
+                    <select id="supplierSelect" class="w-full p-2 border rounded" required>
+                        <option value="">-- Select a supplier --</option>
+                    </select>
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium mb-1" for="priority">Priority (lower = higher priority)</label>
+                    <input type="number" id="priority" class="w-full p-2 border rounded" min="1" value="1" required>
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium mb-1" for="price">Price</label>
+                    <input type="number" id="price" class="w-full p-2 border rounded" step="0.01" min="0" required>
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium mb-1" for="stockLevel">Stock Level</label>
+                    <input type="number" id="stockLevel" class="w-full p-2 border rounded" min="0" value="0" required>
+                </div>
+                
+                <div class="flex justify-end">
+                    <button type="submit" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
+                        Add Supplier
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // Global state
+        let currentProductId = null;
+        let allSuppliers = [];
+        
+        // Elements
+        const productsList = document.getElementById('productsList');
+        const productDetail = document.getElementById('productDetail');
+        const productTitle = document.getElementById('productTitle');
+        const productInfo = document.getElementById('productInfo');
+        const suppliersList = document.getElementById('suppliersList');
+        const syncStatus = document.getElementById('syncStatus');
+        
+        // Buttons
+        const syncProductsBtn = document.getElementById('syncProducts');
+        const closeDetailBtn = document.getElementById('closeDetail');
+        const addSupplierBtn = document.getElementById('addSupplier');
+        const closeFormBtn = document.getElementById('closeForm');
+        
+        // Forms
+        const supplierForm = document.getElementById('supplierForm');
+        const addSupplierForm = document.getElementById('addSupplierForm');
+        const formProductName = document.getElementById('formProductName');
+        const formProductId = document.getElementById('formProductId');
+        const supplierSelect = document.getElementById('supplierSelect');
+        
+        // Event listeners
+        syncProductsBtn.addEventListener('click', syncProducts);
+        closeDetailBtn.addEventListener('click', () => {
+            productDetail.classList.add('hidden');
+        });
+        
+        addSupplierBtn.addEventListener('click', () => {
+            loadSupplierOptions();
+            formProductId.value = currentProductId;
+            formProductName.textContent = productTitle.textContent;
+            supplierForm.classList.remove('hidden');
+            productDetail.classList.add('hidden');
+        });
+        
+        closeFormBtn.addEventListener('click', () => {
+            supplierForm.classList.add('hidden');
+            productDetail.classList.remove('hidden');
+        });
+        
+        addSupplierForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const supplierId = supplierSelect.value;
+            if (!supplierId) {
+                alert('Please select a supplier');
+                return;
+            }
+            
+            const data = {
+                supplierId,
+                priority: parseInt(document.getElementById('priority').value),
+                price: parseFloat(document.getElementById('price').value),
+                stockLevel: parseInt(document.getElementById('stockLevel').value)
+            };
+            
+            try {
+                const response = await fetch(`/api/products/${formProductId.value}/suppliers`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(data)
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`Failed to add supplier: ${response.status}`);
+                }
+                
+                // Close form and refresh product detail
+                supplierForm.classList.add('hidden');
+                loadProductDetail(formProductId.value);
+                productDetail.classList.remove('hidden');
+                
+                // Reset form
+                addSupplierForm.reset();
+                document.getElementById('priority').value = '1';
+                document.getElementById('stockLevel').value = '0';
+                
+            } catch (error) {
+                console.error('Error adding supplier:', error);
+                alert(`Error adding supplier: ${error.message}`);
+            }
+        });
+        
+        // Load all products
+        async function loadProducts() {
+            try {
+                productsList.innerHTML = '<div class="col-span-3 text-center py-4">Loading products...</div>';
+                
+                const response = await fetch('/api/products');
+                const products = await response.json();
+                
+                if (products.length === 0) {
+                    productsList.innerHTML = '<div class="col-span-3 text-center py-4">No products found. Click "Sync Products" to fetch from your Shopify store.</div>';
+                    return;
+                }
+                
+                productsList.innerHTML = products.map(product => `
+                    <div class="border rounded-lg overflow-hidden hover:shadow-md transition-shadow cursor-pointer product-card" data-id="${product.id}">
+                        <div class="p-4">
+                            <h3 class="font-medium truncate">${product.title}</h3>
+                            <p class="text-sm text-gray-500">Variants: ${product.variants?.length || 0}</p>
+                            <div class="flex justify-between items-center mt-2">
+                                <span class="text-xs text-gray-500">ID: ${product.id}</span>
+                                <button class="text-xs bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600">
+                                    Manage Suppliers
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+                
+                // Add click event to product cards
+                document.querySelectorAll('.product-card').forEach(card => {
+                    card.addEventListener('click', () => {
+                        const productId = card.getAttribute('data-id');
+                        loadProductDetail(productId);
+                    });
+                });
+                
+            } catch (error) {
+                console.error('Error​​​​​​​​​​​​​​​​
