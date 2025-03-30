@@ -133,71 +133,7 @@
         const formProductId = document.getElementById('formProductId');
         const supplierSelect = document.getElementById('supplierSelect');
         
-        // Event listeners
-        syncProductsBtn.addEventListener('click', syncProducts);
-        closeDetailBtn.addEventListener('click', () => {
-            productDetail.classList.add('hidden');
-        });
-        
-        addSupplierBtn.addEventListener('click', () => {
-            loadSupplierOptions();
-            formProductId.value = currentProductId;
-            formProductName.textContent = productTitle.textContent;
-            supplierForm.classList.remove('hidden');
-            productDetail.classList.add('hidden');
-        });
-        
-        closeFormBtn.addEventListener('click', () => {
-            supplierForm.classList.add('hidden');
-            productDetail.classList.remove('hidden');
-        });
-        
-        addSupplierForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            
-            const supplierId = supplierSelect.value;
-            if (!supplierId) {
-                alert('Please select a supplier');
-                return;
-            }
-            
-            const data = {
-                supplierId,
-                priority: parseInt(document.getElementById('priority').value),
-                price: parseFloat(document.getElementById('price').value),
-                stockLevel: parseInt(document.getElementById('stockLevel').value)
-            };
-            
-            try {
-                const response = await fetch(`/api/products/${formProductId.value}/suppliers`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify(data)
-                });
-                
-                if (!response.ok) {
-                    throw new Error(`Failed to add supplier: ${response.status}`);
-                }
-                
-                // Close form and refresh product detail
-                supplierForm.classList.add('hidden');
-                loadProductDetail(formProductId.value);
-                productDetail.classList.remove('hidden');
-                
-                // Reset form
-                addSupplierForm.reset();
-                document.getElementById('priority').value = '1';
-                document.getElementById('stockLevel').value = '0';
-                
-            } catch (error) {
-                console.error('Error adding supplier:', error);
-                alert(`Error adding supplier: ${error.message}`);
-            }
-        });
-        
-        // Sync products function - THIS IS THE MISSING IMPLEMENTATION
+        // Sync products function
         async function syncProducts() {
             try {
                 console.log('Starting product sync...');
@@ -254,13 +190,13 @@
                 }
                 
                 productsList.innerHTML = products.map(product => `
-                    <div class="border rounded-lg overflow-hidden hover:shadow-md transition-shadow cursor-pointer product-card" data-id="${product.id}">
+                    <div class="border rounded-lg overflow-hidden hover:shadow-md transition-shadow mb-4">
                         <div class="p-4">
-                            <h3 class="font-medium truncate">${product.title}</h3>
+                            <h3 class="font-medium truncate">${product.title || 'Unnamed Product'}</h3>
                             <p class="text-sm text-gray-500">Variants: ${product.variants?.length || 0}</p>
                             <div class="flex justify-between items-center mt-2">
                                 <span class="text-xs text-gray-500">ID: ${product.id}</span>
-                                <button class="text-xs bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600">
+                                <button class="text-xs bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 manage-suppliers-btn" data-id="${product.id}">
                                     Manage Suppliers
                                 </button>
                             </div>
@@ -268,10 +204,11 @@
                     </div>
                 `).join('');
                 
-                // Add click event to product cards
-                document.querySelectorAll('.product-card').forEach(card => {
-                    card.addEventListener('click', () => {
-                        const productId = card.getAttribute('data-id');
+                // Add click event to manage suppliers buttons
+                document.querySelectorAll('.manage-suppliers-btn').forEach(button => {
+                    button.addEventListener('click', (e) => {
+                        e.stopPropagation(); // Prevent card click from firing
+                        const productId = button.getAttribute('data-id');
                         loadProductDetail(productId);
                     });
                 });
@@ -285,34 +222,53 @@
         // Load product details
         async function loadProductDetail(productId) {
             try {
+                console.log(`Loading product detail for ID: ${productId}`);
                 currentProductId = productId;
                 
-                // Fetch product details
-                const response = await fetch(`/api/products/${productId}`);
-                if (!response.ok) {
-                    throw new Error(`Failed to load product details: ${response.status}`);
+                // Show "loading" state
+                productTitle.textContent = "Loading product...";
+                productInfo.innerHTML = '<div class="animate-pulse bg-gray-100 h-20 rounded"></div>';
+                suppliersList.innerHTML = '<div class="animate-pulse bg-gray-100 h-16 rounded"></div>';
+                productDetail.classList.remove('hidden');
+                
+                // We'll use the data from the products list as a fallback if the API call fails
+                let productTitle = 'Product Details';
+                let productHandle = '';
+                let productVariantsCount = 0;
+                
+                try {
+                    // Fetch product details
+                    const response = await fetch(`/api/products/${productId}`);
+                    if (response.ok) {
+                        const product = await response.json();
+                        productTitle = product.title || 'Unnamed Product';
+                        productHandle = product.handle || '';
+                        productVariantsCount = product.variants?.length || 0;
+                    } else {
+                        console.warn(`Failed to get detailed product info, status: ${response.status}`);
+                    }
+                } catch (error) {
+                    console.warn(`Error getting product details: ${error.message}`);
                 }
                 
-                const product = await response.json();
+                // Update UI with product details
+                document.getElementById('productTitle').textContent = productTitle;
                 
-                // Update UI
-                productTitle.textContent = product.title;
-                
-                // Populate product info
                 productInfo.innerHTML = `
-                    <p><strong>ID:</strong> ${product.id}</p>
-                    <p><strong>Handle:</strong> ${product.handle}</p>
-                    <p><strong>Variants:</strong> ${product.variants?.length || 0}</p>
+                    <p><strong>ID:</strong> ${productId}</p>
+                    ${productHandle ? `<p><strong>Handle:</strong> ${productHandle}</p>` : ''}
+                    <p><strong>Variants:</strong> ${productVariantsCount}</p>
                 `;
                 
                 // Load suppliers for this product
                 loadProductSuppliers(productId);
                 
-                // Show detail panel
-                productDetail.classList.remove('hidden');
             } catch (error) {
                 console.error(`Error loading product details for ${productId}:`, error);
-                alert(`Error loading product details: ${error.message}`);
+                
+                // Show error in product info panel
+                productInfo.innerHTML = `<div class="p-4 bg-red-100 rounded">Error: ${error.message}</div>`;
+                suppliersList.innerHTML = '';
             }
         }
         
@@ -322,11 +278,14 @@
                 suppliersList.innerHTML = '<div class="text-center py-2">Loading suppliers...</div>';
                 
                 const response = await fetch(`/api/products/${productId}/suppliers`);
+                console.log(`Suppliers API response for ${productId}, status:`, response.status);
+                
                 if (!response.ok) {
                     throw new Error(`Failed to load suppliers: ${response.status}`);
                 }
                 
                 const suppliers = await response.json();
+                console.log(`Loaded ${suppliers.length} suppliers for product ${productId}`);
                 
                 if (suppliers.length === 0) {
                     suppliersList.innerHTML = '<div class="text-center py-2 text-gray-500">No suppliers assigned to this product yet.</div>';
@@ -390,6 +349,72 @@
                 alert(`Error loading suppliers: ${error.message}`);
             }
         }
+        
+        // Event listeners
+        syncProductsBtn.addEventListener('click', syncProducts);
+        
+        closeDetailBtn.addEventListener('click', () => {
+            productDetail.classList.add('hidden');
+        });
+        
+        addSupplierBtn.addEventListener('click', () => {
+            loadSupplierOptions();
+            formProductId.value = currentProductId;
+            formProductName.textContent = productTitle.textContent;
+            supplierForm.classList.remove('hidden');
+            productDetail.classList.add('hidden');
+        });
+        
+        closeFormBtn.addEventListener('click', () => {
+            supplierForm.classList.add('hidden');
+            productDetail.classList.remove('hidden');
+        });
+        
+        addSupplierForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const supplierId = supplierSelect.value;
+            if (!supplierId) {
+                alert('Please select a supplier');
+                return;
+            }
+            
+            const data = {
+                supplierId,
+                name: supplierSelect.options[supplierSelect.selectedIndex].text,
+                priority: parseInt(document.getElementById('priority').value),
+                price: parseFloat(document.getElementById('price').value),
+                stockLevel: parseInt(document.getElementById('stockLevel').value)
+            };
+            
+            try {
+                const response = await fetch(`/api/products/${formProductId.value}/suppliers`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(data)
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`Failed to add supplier: ${response.status}`);
+                }
+                
+                // Close form and refresh product detail
+                supplierForm.classList.add('hidden');
+                loadProductDetail(formProductId.value);
+                productDetail.classList.remove('hidden');
+                
+                // Reset form
+                addSupplierForm.reset();
+                document.getElementById('priority').value = '1';
+                document.getElementById('stockLevel').value = '0';
+                
+            } catch (error) {
+                console.error('Error adding supplier:', error);
+                alert(`Error adding supplier: ${error.message}`);
+            }
+        });
         
         // Initial load
         loadProducts();
