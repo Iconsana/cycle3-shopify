@@ -197,13 +197,56 @@
             }
         });
         
+        // Sync products function - THIS IS THE MISSING IMPLEMENTATION
+        async function syncProducts() {
+            try {
+                console.log('Starting product sync...');
+                syncStatus.innerHTML = 'Syncing products...';
+                syncStatus.className = 'mb-4 p-4 bg-blue-100 rounded';
+                syncStatus.classList.remove('hidden');
+                
+                const response = await fetch('/api/products/sync', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                console.log('Sync API response status:', response.status);
+                
+                if (!response.ok) {
+                    throw new Error(`Failed to sync products: ${response.status}`);
+                }
+                
+                const result = await response.json();
+                console.log('Sync result:', result);
+                
+                syncStatus.innerHTML = `Success! ${result.message || 'Products synchronized'}`;
+                syncStatus.className = 'mb-4 p-4 bg-green-100 rounded';
+                
+                // Reload products list
+                loadProducts();
+            } catch (error) {
+                console.error('Error syncing products:', error);
+                syncStatus.innerHTML = `Error: ${error.message}`;
+                syncStatus.className = 'mb-4 p-4 bg-red-100 rounded';
+            }
+        }
+        
         // Load all products
         async function loadProducts() {
             try {
                 productsList.innerHTML = '<div class="col-span-3 text-center py-4">Loading products...</div>';
                 
                 const response = await fetch('/api/products');
+                console.log('Products API response status:', response.status);
+                
+                if (!response.ok) {
+                    throw new Error(`Failed to load products: ${response.status}`);
+                }
+                
                 const products = await response.json();
+                console.log(`Loaded ${products.length} products`);
                 
                 if (products.length === 0) {
                     productsList.innerHTML = '<div class="col-span-3 text-center py-4">No products found. Click "Sync Products" to fetch from your Shopify store.</div>';
@@ -234,4 +277,122 @@
                 });
                 
             } catch (error) {
-                console.error('Error​​​​​​​​​​​​​​​​
+                console.error('Error loading products:', error);
+                productsList.innerHTML = `<div class="col-span-3 text-center py-4 text-red-500">Error loading products: ${error.message}</div>`;
+            }
+        }
+        
+        // Load product details
+        async function loadProductDetail(productId) {
+            try {
+                currentProductId = productId;
+                
+                // Fetch product details
+                const response = await fetch(`/api/products/${productId}`);
+                if (!response.ok) {
+                    throw new Error(`Failed to load product details: ${response.status}`);
+                }
+                
+                const product = await response.json();
+                
+                // Update UI
+                productTitle.textContent = product.title;
+                
+                // Populate product info
+                productInfo.innerHTML = `
+                    <p><strong>ID:</strong> ${product.id}</p>
+                    <p><strong>Handle:</strong> ${product.handle}</p>
+                    <p><strong>Variants:</strong> ${product.variants?.length || 0}</p>
+                `;
+                
+                // Load suppliers for this product
+                loadProductSuppliers(productId);
+                
+                // Show detail panel
+                productDetail.classList.remove('hidden');
+            } catch (error) {
+                console.error(`Error loading product details for ${productId}:`, error);
+                alert(`Error loading product details: ${error.message}`);
+            }
+        }
+        
+        // Load suppliers for a product
+        async function loadProductSuppliers(productId) {
+            try {
+                suppliersList.innerHTML = '<div class="text-center py-2">Loading suppliers...</div>';
+                
+                const response = await fetch(`/api/products/${productId}/suppliers`);
+                if (!response.ok) {
+                    throw new Error(`Failed to load suppliers: ${response.status}`);
+                }
+                
+                const suppliers = await response.json();
+                
+                if (suppliers.length === 0) {
+                    suppliersList.innerHTML = '<div class="text-center py-2 text-gray-500">No suppliers assigned to this product yet.</div>';
+                    return;
+                }
+                
+                // Sort suppliers by priority
+                suppliers.sort((a, b) => a.priority - b.priority);
+                
+                suppliersList.innerHTML = suppliers.map((supplier, index) => `
+                    <div class="border rounded p-3 ${index === 0 ? 'bg-green-50 border-green-200' : ''}">
+                        <div class="flex justify-between">
+                            <span class="font-medium">${supplier.supplierName || supplier.name}</span>
+                            <span class="text-sm ${index === 0 ? 'text-green-600' : 'text-gray-500'}">
+                                Priority: ${supplier.priority}
+                            </span>
+                        </div>
+                        <div class="mt-1 text-sm">
+                            <span>Price: R${supplier.price.toFixed(2)}</span>
+                            <span class="ml-3">Stock: ${supplier.stockLevel}</span>
+                        </div>
+                    </div>
+                `).join('');
+            } catch (error) {
+                console.error(`Error loading suppliers for product ${productId}:`, error);
+                suppliersList.innerHTML = `<div class="text-center py-2 text-red-500">Error loading suppliers: ${error.message}</div>`;
+            }
+        }
+        
+        // Load supplier options for the form
+        async function loadSupplierOptions() {
+            try {
+                // Clear existing options
+                while (supplierSelect.options.length > 1) {
+                    supplierSelect.remove(1);
+                }
+                
+                // If we already have suppliers loaded, use them
+                if (allSuppliers.length === 0) {
+                    const response = await fetch('/api/suppliers');
+                    if (!response.ok) {
+                        throw new Error(`Failed to load suppliers: ${response.status}`);
+                    }
+                    
+                    allSuppliers = await response.json();
+                }
+                
+                // Add options to select
+                allSuppliers.forEach(supplier => {
+                    const option = document.createElement('option');
+                    option.value = supplier.id;
+                    option.textContent = supplier.name;
+                    supplierSelect.appendChild(option);
+                });
+                
+                if (allSuppliers.length === 0) {
+                    alert('No suppliers found. Please add suppliers first from the Suppliers page.');
+                }
+            } catch (error) {
+                console.error('Error loading supplier options:', error);
+                alert(`Error loading suppliers: ${error.message}`);
+            }
+        }
+        
+        // Initial load
+        loadProducts();
+    </script>
+</body>
+</html>
