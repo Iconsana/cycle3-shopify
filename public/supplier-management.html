@@ -148,6 +148,65 @@
         </div>
     </div>
 
+<div class="d-flex justify-content-end mb-3">
+    <button onclick="debugData()" class="btn btn-outline-secondary">
+        Debug Data
+    </button>
+</div>
+
+<!-- Add this script at the end of the file, before the closing </body> tag -->
+<script>
+    function debugData() {
+        console.log('Suppliers in memory:', suppliers);
+        console.log('Product-Supplier relationships:', productSuppliers);
+        
+        // Create debug output
+        const debugOutput = document.createElement('div');
+        debugOutput.className = 'alert alert-info mt-3';
+        debugOutput.innerHTML = `
+            <h4>Debug Information</h4>
+            <p>Total suppliers: ${suppliers.length}</p>
+            <p>Total product-supplier relationships: ${productSuppliers.length}</p>
+            <p>Products with suppliers: ${[...new Set(productSuppliers.map(ps => ps.productId))].join(', ')}</p>
+            <details>
+                <summary>View Data</summary>
+                <pre>${JSON.stringify({suppliers, productSuppliers}, null, 2)}</pre>
+            </details>
+        `;
+        
+        // Insert into page
+        document.querySelector('.container').appendChild(debugOutput);
+    }
+    
+    // Update any existing references to ensure data is properly shared
+    async function loadAllData() {
+        try {
+            // Fetch from API
+            const suppliersResponse = await fetch('/api/suppliers');
+            const supplierData = await suppliersResponse.json();
+            
+            // Update global data
+            suppliers = supplierData;
+            
+            // Fetch product-supplier relationships
+            const psResponse = await fetch('/api/product-suppliers');
+            const psData = await psResponse.json();
+            
+            // Update global data
+            productSuppliers = psData;
+            
+            // Render UI
+            renderSuppliers();
+            renderProductSuppliers();
+        } catch (error) {
+            console.error('Error loading data:', error);
+        }
+    }
+    
+    // Call on page load
+    loadAllData();
+</script>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         // In-memory storage
