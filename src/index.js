@@ -114,6 +114,20 @@ app.get('/api/suppliers', (req, res) => {
   res.json(app.locals.suppliers || []);
 });
 
+// Debug endpoint to view app state
+app.get('/api/debug/app-state', (req, res) => {
+  const state = {
+    suppliers: app.locals.suppliers || [],
+    productSuppliers: app.locals.productSuppliers || [],
+    supplierCount: app.locals.suppliers?.length || 0,
+    productSupplierCount: app.locals.productSuppliers?.length || 0,
+    uniqueProductIdsWithSuppliers: [...new Set(app.locals.productSuppliers.map(ps => ps.productId))],
+    storageMode: app.locals.useInMemoryStorage ? 'in-memory' : 'mongodb'
+  };
+  
+  res.json(state);
+});
+
 app.post('/api/suppliers', (req, res) => {
   try {
     const supplier = {
