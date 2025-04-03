@@ -211,8 +211,16 @@ app.post('/api/product-suppliers', (req, res) => {
 app.get('/api/products/:productId/suppliers', (req, res) => {
   try {
     const { productId } = req.params;
-    const suppliers = app.locals.productSuppliers.filter(ps => ps.productId === productId) || [];
-    console.log(`GET /api/products/${productId}/suppliers - returning: ${suppliers.length} suppliers`);
+    
+    // Find suppliers from productSuppliers array
+    let suppliers = app.locals.productSuppliers.filter(ps => ps.productId === productId) || [];
+    
+    // Debug logging
+    console.log(`GET /api/products/${productId}/suppliers`);
+    console.log('Total productSuppliers in memory:', app.locals.productSuppliers.length);
+    console.log('Product IDs in storage:', [...new Set(app.locals.productSuppliers.map(ps => ps.productId))]);
+    console.log(`Returning: ${suppliers.length} suppliers for product ${productId}`);
+    
     res.json(suppliers);
   } catch (error) {
     console.error(`Error fetching suppliers for product ${req.params.productId}:`, error);
@@ -220,6 +228,7 @@ app.get('/api/products/:productId/suppliers', (req, res) => {
   }
 });
 
+// Update the POST route to ensure consistent data format
 app.post('/api/products/:productId/suppliers', (req, res) => {
   try {
     const { productId } = req.params;
@@ -246,8 +255,16 @@ app.post('/api/products/:productId/suppliers', (req, res) => {
       createdAt: new Date().toISOString()
     };
 
+    // Log before adding
+    console.log('Current productSuppliers count:', app.locals.productSuppliers.length);
+    console.log('Adding new supplier for product:', productId);
+    
+    // Add to in-memory storage
     app.locals.productSuppliers.push(newSupplier);
-    console.log('Added new supplier for product:', productId);
+    
+    // Log after adding
+    console.log('New productSuppliers count:', app.locals.productSuppliers.length);
+    
     res.status(201).json(newSupplier);
   } catch (error) {
     console.error(`Error adding supplier for product ${req.params.productId}:`, error);
