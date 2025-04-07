@@ -9,6 +9,66 @@ import shopify from '../config/shopify.js';
 // ADDED: Import product service
 import { syncProducts, fetchAllProducts } from './services/product-service.js';
 
+// Add this to the top of your src/index.js file
+import fs from 'fs';
+import path from 'path';
+
+// Function to load data from JSON file
+const loadDataFromFile = (filename) => {
+  const dataPath = path.join(__dirname, '..', 'data', filename);
+  try {
+    // Create data directory if it doesn't exist
+    const dataDir = path.join(__dirname, '..', 'data');
+    if (!fs.existsSync(dataDir)) {
+      fs.mkdirSync(dataDir, { recursive: true });
+    }
+    
+    // Check if file exists, if not return empty array
+    if (!fs.existsSync(dataPath)) {
+      return [];
+    }
+    
+    // Read and parse file
+    const data = fs.readFileSync(dataPath, 'utf8');
+    return JSON.parse(data);
+  } catch (error) {
+    console.error(`Error loading data from ${filename}:`, error);
+    return [];
+  }
+};
+
+// Function to save data to JSON file
+const saveDataToFile = (filename, data) => {
+  const dataPath = path.join(__dirname, '..', 'data', filename);
+  try {
+    // Create data directory if it doesn't exist
+    const dataDir = path.join(__dirname, '..', 'data');
+    if (!fs.existsSync(dataDir)) {
+      fs.mkdirSync(dataDir, { recursive: true });
+    }
+    
+    // Write data to file
+    fs.writeFileSync(dataPath, JSON.stringify(data, null, 2), 'utf8');
+    console.log(`Data saved to ${filename}`);
+    return true;
+  } catch (error) {
+    console.error(`Error saving data to ${filename}:`, error);
+    return false;
+  }
+};
+
+// Initialize app.locals with data from files
+const initializeAppData = (app) => {
+  app.locals.suppliers = loadDataFromFile('suppliers.json');
+  app.locals.productSuppliers = loadDataFromFile('product-suppliers.json');
+  app.locals.purchaseOrders = loadDataFromFile('purchase-orders.json');
+  
+  console.log('Data loaded from files:');
+  console.log(`- Suppliers: ${app.locals.suppliers.length}`);
+  console.log(`- Product-Supplier relationships: ${app.locals.productSuppliers.length}`);
+  console.log(`- Purchase Orders: ${app.locals.purchaseOrders.length}`);
+};
+
 // ES Module fix for __dirname
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
