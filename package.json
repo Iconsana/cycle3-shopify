@@ -15,12 +15,12 @@
     "express": "^4.18.2",
     "dotenv": "^16.3.1",
     "@shopify/shopify-api": "^7.7.0",
-     "lowdb": "^6.0.1",
     "@shopify/app": "^3.0.0",
     "@shopify/cli": "^3.0.0",
     "@shopify/admin-ui-extensions": "^1.0.0",
     "node-fetch": "^3.3.2",
-    "mongoose": "^8.1.0"
+    "mongoose": "^8.1.0",
+    "lowdb": "^6.0.1"
   },
   "devDependencies": {
     "nodemon": "^3.0.2"
