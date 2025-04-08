@@ -6,12 +6,11 @@ import webhookRoutes from './routes/webhooks.js';
 import { connectDB } from './database.js';
 import { registerWebhooks } from './services/webhook-registration.js';
 import shopify from '../config/shopify.js';
-// ADDED: Import product service
-import { syncProducts, fetchAllProducts } from './services/product-service.js';
-
-// Add this to the top of your src/index.js file
 import fs from 'fs';
-import path from 'path';
+
+// ES Module fix for __dirname
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Function to load data from JSON file
 const loadDataFromFile = (filename) => {
@@ -69,10 +68,6 @@ const initializeAppData = (app) => {
   console.log(`- Purchase Orders: ${app.locals.purchaseOrders.length}`);
 };
 
-// ES Module fix for __dirname
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
 // Load environment variables
 dotenv.config();
 
@@ -113,10 +108,8 @@ console.log('Public directory path:', publicPath);
 
 // In-memory storage for MVP testing
 app.locals.useInMemoryStorage = !dbConnection;
-app.locals.suppliers = [];
-app.locals.productSuppliers = [];
-app.locals.purchaseOrders = [];
-app.locals.products = []; // ADDED: Initialize products array
+// Initialize data from files
+initializeAppData(app);
 
 // Middleware
 app.use(express.json());
@@ -163,7 +156,7 @@ app.get('/suppliers', (req, res) => {
   res.sendFile(path.join(publicPath, 'supplier-management.html'));
 });
 
-// ADDED: Product Management UI Route
+// Product Management UI Route
 app.get('/products', (req, res) => {
   res.sendFile(path.join(publicPath, 'product-management.html'));
 });
@@ -172,20 +165,6 @@ app.get('/products', (req, res) => {
 app.get('/api/suppliers', (req, res) => {
   console.log('GET /api/suppliers - returning:', app.locals.suppliers?.length || 0, 'suppliers');
   res.json(app.locals.suppliers || []);
-});
-
-// Debug endpoint to view app state
-app.get('/api/debug/app-state', (req, res) => {
-  const state = {
-    suppliers: app.locals.suppliers || [],
-    productSuppliers: app.locals.productSuppliers || [],
-    supplierCount: app.locals.suppliers?.length || 0,
-    productSupplierCount: app.locals.productSuppliers?.length || 0,
-    uniqueProductIdsWithSuppliers: [...new Set(app.locals.productSuppliers.map(ps => ps.productId))],
-    storageMode: app.locals.useInMemoryStorage ? 'in-memory' : 'mongodb'
-  };
-  
-  res.json(state);
 });
 
 app.post('/api/suppliers', (req, res) => {
@@ -202,41 +181,14 @@ app.post('/api/suppliers', (req, res) => {
     
     app.locals.suppliers.push(supplier);
     console.log('Added new supplier:', supplier.name);
+    
+    // Save to file
+    saveDataToFile('suppliers.json', app.locals.suppliers);
+    
     res.status(201).json(supplier);
   } catch (error) {
     console.error('Error adding supplier:', error);
     res.status(500).json({ error: 'Error adding supplier', message: error.message });
-  }
-});
-
-// ADDED: API Routes for Products
-app.get('/api/products', async (req, res) => {
-  try {
-    // If we don't have products in memory yet, fetch them
-    if (!app.locals.products || app.locals.products.length === 0) {
-      await syncProducts(app);
-    }
-    
-    console.log(`GET /api/products - returning: ${app.locals.products?.length || 0} products`);
-    res.json(app.locals.products || []);
-  } catch (error) {
-    console.error('Error fetching products:', error);
-    res.status(500).json({ error: 'Error fetching products', message: error.message });
-  }
-});
-
-// ADDED: API route to manually trigger product sync
-app.post('/api/products/sync', async (req, res) => {
-  try {
-    const products = await syncProducts(app);
-    console.log(`Synchronized ${products.length} products`);
-    res.json({ 
-      success: true, 
-      message: `Synchronized ${products.length} products` 
-    });
-  } catch (error) {
-    console.error('Error syncing products:', error);
-    res.status(500).json({ error: 'Error syncing products', message: error.message });
   }
 });
 
@@ -274,6 +226,10 @@ app.post('/api/product-suppliers', (req, res) => {
     
     app.locals.productSuppliers.push(productSupplier);
     console.log('Added new product supplier for product:', productSupplier.productId);
+    
+    // Save to file
+    saveDataToFile('product-suppliers.json', app.locals.productSuppliers);
+    
     res.status(201).json(productSupplier);
   } catch (error) {
     console.error('Error adding product supplier:', error);
@@ -302,7 +258,6 @@ app.get('/api/products/:productId/suppliers', (req, res) => {
   }
 });
 
-// Update the POST route to ensure consistent data format
 app.post('/api/products/:productId/suppliers', (req, res) => {
   try {
     const { productId } = req.params;
@@ -336,6 +291,9 @@ app.post('/api/products/:productId/suppliers', (req, res) => {
     // Add to in-memory storage
     app.locals.productSuppliers.push(newSupplier);
     
+    // Save to file for persistence
+    saveDataToFile('product-suppliers.json', app.locals.productSuppliers);
+    
     // Log after adding
     console.log('New productSuppliers count:', app.locals.productSuppliers.length);
     
@@ -343,49 +301,6 @@ app.post('/api/products/:productId/suppliers', (req, res) => {
   } catch (error) {
     console.error(`Error adding supplier for product ${req.params.productId}:`, error);
     res.status(500).json({ error: 'Error adding supplier', message: error.message });
-  }
-});
-
-// ADDED: Get a specific product by ID
-app.get('/api/products/:productId', async (req, res) => {
-  try {
-    const { productId } = req.params;
-    
-    // If we don't have products in memory yet, fetch them
-    if (!app.locals.products || app.locals.products.length === 0) {
-      await syncProducts(app);
-    }
-    
-    const product = app.locals.products.find(p => p.id === productId);
-    
-    if (!product) {
-      // If not found in local cache, try to fetch directly from Shopify
-      try {
-        const client = new shopify.clients.Rest({
-          session: {
-            shop: process.env.SHOPIFY_SHOP_NAME,
-            accessToken: process.env.SHOPIFY_ACCESS_TOKEN
-          }
-        });
-        
-        const response = await client.get({
-          path: `products/${productId}`
-        });
-        
-        if (response.body.product) {
-          return res.json(response.body.product);
-        }
-      } catch (fetchError) {
-        console.error(`Error fetching product ${productId} from Shopify:`, fetchError);
-      }
-      
-      return res.status(404).json({ error: 'Product not found' });
-    }
-    
-    res.json(product);
-  } catch (error) {
-    console.error(`Error fetching product ${req.params.productId}:`, error);
-    res.status(500).json({ error: 'Error fetching product', message: error.message });
   }
 });
 
@@ -420,6 +335,109 @@ app.get('/api/products/:productId/metafields', async (req, res) => {
       error: 'Failed to fetch product metafields',
       message: error.message
     });
+  }
+});
+
+// API route to get a specific product from Shopify
+app.get('/api/products/:productId', async (req, res) => {
+  try {
+    const { productId } = req.params;
+    console.log(`GET /api/products/${productId}`);
+    
+    // For MVP testing, create a client using the app's access token
+    const client = new shopify.clients.Rest({
+      session: {
+        shop: process.env.SHOPIFY_SHOP_NAME,
+        accessToken: process.env.SHOPIFY_ACCESS_TOKEN
+      }
+    });
+
+    const response = await client.get({
+      path: `products/${productId}`
+    });
+
+    res.json(response.body.product || {});
+    
+  } catch (error) {
+    console.error(`Error fetching product ${req.params.productId}:`, error);
+    res.status(500).json({
+      error: 'Failed to fetch product',
+      message: error.message
+    });
+  }
+});
+
+// API routes for all products
+app.get('/api/products', (req, res) => {
+  try {
+    const products = app.locals.products || [];
+    console.log(`GET /api/products - returning: ${products.length} products`);
+    res.json(products);
+  } catch (error) {
+    console.error('Error fetching products:', error);
+    res.status(500).json({ error: 'Error fetching products', message: error.message });
+  }
+});
+
+// API route to sync products from Shopify
+app.post('/api/products/sync', async (req, res) => {
+  try {
+    console.log('Starting product sync...');
+    
+    const client = new shopify.clients.Rest({
+      session: {
+        shop: process.env.SHOPIFY_SHOP_NAME,
+        accessToken: process.env.SHOPIFY_ACCESS_TOKEN
+      }
+    });
+    
+    // Fetch products from Shopify
+    let allProducts = [];
+    let params = { limit: 50 };
+    let hasNextPage = true;
+    
+    while (hasNextPage) {
+      const response = await client.get({
+        path: 'products',
+        query: params
+      });
+      
+      const products = response.body.products || [];
+      allProducts = [...allProducts, ...products];
+      
+      // Check if there's a next page
+      hasNextPage = false;
+      if (response.pageInfo?.nextPage?.query) {
+        params = response.pageInfo.nextPage.query;
+        hasNextPage = true;
+      }
+    }
+    
+    console.log(`Fetched ${allProducts.length} products from shop`);
+    
+    // Store in app.locals
+    app.locals.products = allProducts.map(product => ({
+      id: product.id,
+      title: product.title,
+      handle: product.handle,
+      variants: product.variants?.map(v => ({
+        id: v.id,
+        title: v.title,
+        sku: v.sku || '',
+        price: v.price,
+        inventory_quantity: v.inventory_quantity || 0
+      })) || []
+    }));
+    
+    console.log(`Synchronized ${app.locals.products.length} products`);
+    
+    res.json({ 
+      success: true, 
+      message: `Synchronized ${app.locals.products.length} products` 
+    });
+  } catch (error) {
+    console.error('Error syncing products:', error);
+    res.status(500).json({ error: 'Error syncing products', message: error.message });
   }
 });
 
@@ -507,6 +525,10 @@ app.post('/api/purchase-orders/simulate', (req, res) => {
     app.locals.purchaseOrders.push(...pos);
     console.log(`Generated ${pos.length} purchase orders`);
     
+    // Save updated data to files
+    saveDataToFile('product-suppliers.json', app.locals.productSuppliers);
+    saveDataToFile('purchase-orders.json', app.locals.purchaseOrders);
+    
     res.status(201).json({
       orderId: order.id,
       purchaseOrders: pos
@@ -518,6 +540,35 @@ app.post('/api/purchase-orders/simulate', (req, res) => {
       message: error.message
     });
   }
+});
+
+// Debug endpoint to view app state
+app.get('/api/debug/app-state', (req, res) => {
+  const state = {
+    suppliers: {
+      count: app.locals.suppliers.length,
+      data: app.locals.suppliers
+    },
+    productSuppliers: {
+      count: app.locals.productSuppliers.length,
+      uniqueProductIds: [...new Set(app.locals.productSuppliers.map(ps => ps.productId))],
+      data: app.locals.productSuppliers
+    },
+    purchaseOrders: {
+      count: app.locals.purchaseOrders.length
+    },
+    products: {
+      count: app.locals.products?.length || 0
+    },
+    storageMode: app.locals.useInMemoryStorage ? 'in-memory' : 'mongodb',
+    dataFiles: {
+      suppliersFile: fs.existsSync(path.join(__dirname, '..', 'data', 'suppliers.json')),
+      productSuppliersFile: fs.existsSync(path.join(__dirname, '..', 'data', 'product-suppliers.json')),
+      purchaseOrdersFile: fs.existsSync(path.join(__dirname, '..', 'data', 'purchase-orders.json'))
+    }
+  };
+  
+  res.json(state);
 });
 
 // Webhook routes
@@ -559,11 +610,55 @@ app.use((req, res) => {
   res.sendFile(path.join(publicPath, 'index.html'));
 });
 
-// ADDED: Initial product sync at startup
+// Initial product sync at startup
 (async () => {
   try {
     console.log('Starting initial product sync...');
-    await syncProducts(app);
+    const client = new shopify.clients.Rest({
+      session: {
+        shop: process.env.SHOPIFY_SHOP_NAME,
+        accessToken: process.env.SHOPIFY_ACCESS_TOKEN
+      }
+    });
+    
+    // Fetch products from Shopify
+    let allProducts = [];
+    let params = { limit: 50 };
+    let hasNextPage = true;
+    
+    while (hasNextPage) {
+      const response = await client.get({
+        path: 'products',
+        query: params
+      });
+      
+      const products = response.body.products || [];
+      allProducts = [...allProducts, ...products];
+      
+      // Check if there's a next page
+      hasNextPage = false;
+      if (response.pageInfo?.nextPage?.query) {
+        params = response.pageInfo.nextPage.query;
+        hasNextPage = true;
+      }
+    }
+    
+    console.log(`Fetched ${allProducts.length} products from shop`);
+    
+    // Store in app.locals
+    app.locals.products = allProducts.map(product => ({
+      id: product.id,
+      title: product.title,
+      handle: product.handle,
+      variants: product.variants?.map(v => ({
+        id: v.id,
+        title: v.title,
+        sku: v.sku || '',
+        price: v.price,
+        inventory_quantity: v.inventory_quantity || 0
+      })) || []
+    }));
+    
     console.log(`Successfully synchronized ${app.locals.products.length} products from Shopify`);
   } catch (error) {
     console.error('Initial product sync failed, but continuing app startup:', error.message);
@@ -582,7 +677,7 @@ app.use((req, res) => {
   app.listen(port, () => {
     console.log(`Server running on port ${port}`);
     console.log(`Public directory serving from: ${publicPath}`);
-    console.log(`Storage mode: ${app.locals.useInMemoryStorage ? 'in-memory (MongoDB not connected)' : 'MongoDB'}`);
+    console.log(`Storage mode: ${app.locals.useInMemoryStorage ? 'in-memory (MongoDB not connected)' : 'mongodb'}`);
   });
 })();
 
