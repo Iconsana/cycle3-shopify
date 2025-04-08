@@ -6,67 +6,22 @@ import webhookRoutes from './routes/webhooks.js';
 import { connectDB } from './database.js';
 import { registerWebhooks } from './services/webhook-registration.js';
 import shopify from '../config/shopify.js';
-import fs from 'fs';
+import { 
+  initDB, 
+  getSuppliers, 
+  addSupplier, 
+  getProductSuppliers, 
+  addProductSupplier,
+  getPurchaseOrders,
+  addPurchaseOrders,
+  updateProductSupplierStock,
+  storeProducts,
+  getProducts
+} from './services/database.js';
 
 // ES Module fix for __dirname
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-
-// Function to load data from JSON file
-const loadDataFromFile = (filename) => {
-  const dataPath = path.join(__dirname, '..', 'data', filename);
-  try {
-    // Create data directory if it doesn't exist
-    const dataDir = path.join(__dirname, '..', 'data');
-    if (!fs.existsSync(dataDir)) {
-      fs.mkdirSync(dataDir, { recursive: true });
-    }
-    
-    // Check if file exists, if not return empty array
-    if (!fs.existsSync(dataPath)) {
-      return [];
-    }
-    
-    // Read and parse file
-    const data = fs.readFileSync(dataPath, 'utf8');
-    return JSON.parse(data);
-  } catch (error) {
-    console.error(`Error loading data from ${filename}:`, error);
-    return [];
-  }
-};
-
-// Function to save data to JSON file
-const saveDataToFile = (filename, data) => {
-  const dataPath = path.join(__dirname, '..', 'data', filename);
-  try {
-    // Create data directory if it doesn't exist
-    const dataDir = path.join(__dirname, '..', 'data');
-    if (!fs.existsSync(dataDir)) {
-      fs.mkdirSync(dataDir, { recursive: true });
-    }
-    
-    // Write data to file
-    fs.writeFileSync(dataPath, JSON.stringify(data, null, 2), 'utf8');
-    console.log(`Data saved to ${filename}`);
-    return true;
-  } catch (error) {
-    console.error(`Error saving data to ${filename}:`, error);
-    return false;
-  }
-};
-
-// Initialize app.locals with data from files
-const initializeAppData = (app) => {
-  app.locals.suppliers = loadDataFromFile('suppliers.json');
-  app.locals.productSuppliers = loadDataFromFile('product-suppliers.json');
-  app.locals.purchaseOrders = loadDataFromFile('purchase-orders.json');
-  
-  console.log('Data loaded from files:');
-  console.log(`- Suppliers: ${app.locals.suppliers.length}`);
-  console.log(`- Product-Supplier relationships: ${app.locals.productSuppliers.length}`);
-  console.log(`- Purchase Orders: ${app.locals.purchaseOrders.length}`);
-};
 
 // Load environment variables
 dotenv.config();
@@ -89,14 +44,17 @@ if (process.env.MONGODB_URI) {
     if (dbConnection) {
       console.log('MongoDB connected successfully');
     } else {
-      console.log('MongoDB connection failed, but continuing with in-memory storage');
+      console.log('MongoDB connection failed, but continuing with file-based storage');
     }
   } catch (error) {
-    console.error('MongoDB connection error, continuing with in-memory storage:', error.message);
+    console.error('MongoDB connection error, continuing with file-based storage:', error.message);
   }
 } else {
-  console.log('No MongoDB URI provided, using in-memory storage only');
+  console.log('No MongoDB URI provided, using file-based storage');
 }
+
+// Initialize LowDB
+await initDB();
 
 // App setup
 const app = express();
@@ -106,10 +64,18 @@ const port = process.env.PORT || 10000;
 const publicPath = path.join(__dirname, '..', 'public');
 console.log('Public directory path:', publicPath);
 
-// In-memory storage for MVP testing
+// Initialize app.locals with data from database
 app.locals.useInMemoryStorage = !dbConnection;
-// Initialize data from files
-initializeAppData(app);
+app.locals.suppliers = await getSuppliers();
+app.locals.productSuppliers = await getProductSuppliers();
+app.locals.purchaseOrders = await getPurchaseOrders();
+app.locals.products = await getProducts();
+
+console.log('Data loaded from database:');
+console.log(`- Suppliers: ${app.locals.suppliers.length}`);
+console.log(`- Product-Supplier relationships: ${app.locals.productSuppliers.length}`);
+console.log(`- Purchase Orders: ${app.locals.purchaseOrders.length}`);
+console.log(`- Products: ${app.locals.products?.length || 0}`);
 
 // Middleware
 app.use(express.json());
@@ -128,7 +94,7 @@ app.get('/health', (req, res) => {
   res.status(200).json({ 
     status: 'healthy',
     message: 'Multi-Supplier Management App Running',
-    storage: app.locals.useInMemoryStorage ? 'in-memory' : 'mongodb',
+    storage: app.locals.useInMemoryStorage ? 'file-based' : 'mongodb',
     time: new Date().toISOString()
   });
 });
@@ -141,7 +107,7 @@ app.get('/', (req, res) => {
     res.status(200).json({ 
       status: 'healthy',
       message: 'Multi-Supplier Management App Running',
-      storage: app.locals.useInMemoryStorage ? 'in-memory' : 'mongodb' 
+      storage: app.locals.useInMemoryStorage ? 'file-based' : 'mongodb' 
     });
   }
 });
@@ -162,12 +128,18 @@ app.get('/products', (req, res) => {
 });
 
 // API Routes for Suppliers
-app.get('/api/suppliers', (req, res) => {
-  console.log('GET /api/suppliers - returning:', app.locals.suppliers?.length || 0, 'suppliers');
-  res.json(app.locals.suppliers || []);
+app.get('/api/suppliers', async (req, res) => {
+  try {
+    const suppliers = await getSuppliers();
+    console.log('GET /api/suppliers - returning:', suppliers.length, 'suppliers');
+    res.json(suppliers);
+  } catch (error) {
+    console.error('Error fetching suppliers:', error);
+    res.status(500).json({ error: 'Error fetching suppliers', message: error.message });
+  }
 });
 
-app.post('/api/suppliers', (req, res) => {
+app.post('/api/suppliers', async (req, res) => {
   try {
     const supplier = {
       id: Date.now().toString(),
@@ -179,12 +151,13 @@ app.post('/api/suppliers', (req, res) => {
       createdAt: new Date().toISOString()
     };
     
-    app.locals.suppliers.push(supplier);
+    // Add to database
+    await addSupplier(supplier);
+    
+    // Update in-memory
+    app.locals.suppliers = await getSuppliers();
+    
     console.log('Added new supplier:', supplier.name);
-    
-    // Save to file
-    saveDataToFile('suppliers.json', app.locals.suppliers);
-    
     res.status(201).json(supplier);
   } catch (error) {
     console.error('Error adding supplier:', error);
@@ -193,14 +166,10 @@ app.post('/api/suppliers', (req, res) => {
 });
 
 // API Routes for Product Suppliers
-app.get('/api/product-suppliers', (req, res) => {
+app.get('/api/product-suppliers', async (req, res) => {
   try {
     const productId = req.query.productId;
-    let result = app.locals.productSuppliers || [];
-    
-    if (productId) {
-      result = result.filter(ps => ps.productId === productId);
-    }
+    const result = await getProductSuppliers(productId);
     
     console.log(`GET /api/product-suppliers - returning: ${result.length} suppliers`);
     res.json(result);
@@ -210,26 +179,28 @@ app.get('/api/product-suppliers', (req, res) => {
   }
 });
 
-app.post('/api/product-suppliers', (req, res) => {
+app.post('/api/product-suppliers', async (req, res) => {
   try {
+    const suppliers = await getSuppliers();
     const productSupplier = {
       id: Date.now().toString(),
       productId: req.body.productId,
       productName: req.body.productName || req.body.productId,
       supplierId: req.body.supplierId,
-      supplierName: app.locals.suppliers.find(s => s.id === req.body.supplierId)?.name || 'Unknown',
+      supplierName: suppliers.find(s => s.id === req.body.supplierId)?.name || 'Unknown',
       priority: parseInt(req.body.priority) || 1,
       price: parseFloat(req.body.price),
       stockLevel: parseInt(req.body.stockLevel) || 0,
       lastUpdated: new Date().toISOString()
     };
     
-    app.locals.productSuppliers.push(productSupplier);
+    // Add to database
+    await addProductSupplier(productSupplier);
+    
+    // Update in-memory
+    app.locals.productSuppliers = await getProductSuppliers();
+    
     console.log('Added new product supplier for product:', productSupplier.productId);
-    
-    // Save to file
-    saveDataToFile('product-suppliers.json', app.locals.productSuppliers);
-    
     res.status(201).json(productSupplier);
   } catch (error) {
     console.error('Error adding product supplier:', error);
@@ -238,17 +209,18 @@ app.post('/api/product-suppliers', (req, res) => {
 });
 
 // API routes for specific product's suppliers
-app.get('/api/products/:productId/suppliers', (req, res) => {
+app.get('/api/products/:productId/suppliers', async (req, res) => {
   try {
     const { productId } = req.params;
     
     // Find suppliers from productSuppliers array
-    let suppliers = app.locals.productSuppliers.filter(ps => ps.productId === productId) || [];
+    const suppliers = await getProductSuppliers(productId);
     
     // Debug logging
     console.log(`GET /api/products/${productId}/suppliers`);
-    console.log('Total productSuppliers in memory:', app.locals.productSuppliers.length);
-    console.log('Product IDs in storage:', [...new Set(app.locals.productSuppliers.map(ps => ps.productId))]);
+    const allProductSuppliers = await getProductSuppliers();
+    console.log('Total productSuppliers in database:', allProductSuppliers.length);
+    console.log('Product IDs in storage:', [...new Set(allProductSuppliers.map(ps => ps.productId))]);
     console.log(`Returning: ${suppliers.length} suppliers for product ${productId}`);
     
     res.json(suppliers);
@@ -258,16 +230,17 @@ app.get('/api/products/:productId/suppliers', (req, res) => {
   }
 });
 
-app.post('/api/products/:productId/suppliers', (req, res) => {
+app.post('/api/products/:productId/suppliers', async (req, res) => {
   try {
     const { productId } = req.params;
     const supplierData = req.body;
     console.log(`POST /api/products/${productId}/suppliers - data:`, supplierData);
 
     // Find the supplier name if supplierId is provided
+    const suppliers = await getSuppliers();
     let supplierName = supplierData.name;
     if (supplierData.supplierId) {
-      const supplier = app.locals.suppliers.find(s => s.id === supplierData.supplierId);
+      const supplier = suppliers.find(s => s.id === supplierData.supplierId);
       if (supplier) {
         supplierName = supplier.name;
       }
@@ -285,17 +258,19 @@ app.post('/api/products/:productId/suppliers', (req, res) => {
     };
 
     // Log before adding
-    console.log('Current productSuppliers count:', app.locals.productSuppliers.length);
+    const currentProductSuppliers = await getProductSuppliers();
+    console.log('Current productSuppliers count:', currentProductSuppliers.length);
     console.log('Adding new supplier for product:', productId);
     
-    // Add to in-memory storage
-    app.locals.productSuppliers.push(newSupplier);
+    // Add to database
+    await addProductSupplier(newSupplier);
     
-    // Save to file for persistence
-    saveDataToFile('product-suppliers.json', app.locals.productSuppliers);
+    // Update in-memory
+    app.locals.productSuppliers = await getProductSuppliers();
     
     // Log after adding
-    console.log('New productSuppliers count:', app.locals.productSuppliers.length);
+    const updatedProductSuppliers = await getProductSuppliers();
+    console.log('New productSuppliers count:', updatedProductSuppliers.length);
     
     res.status(201).json(newSupplier);
   } catch (error) {
@@ -368,9 +343,9 @@ app.get('/api/products/:productId', async (req, res) => {
 });
 
 // API routes for all products
-app.get('/api/products', (req, res) => {
+app.get('/api/products', async (req, res) => {
   try {
-    const products = app.locals.products || [];
+    const products = await getProducts();
     console.log(`GET /api/products - returning: ${products.length} products`);
     res.json(products);
   } catch (error) {
@@ -415,8 +390,8 @@ app.post('/api/products/sync', async (req, res) => {
     
     console.log(`Fetched ${allProducts.length} products from shop`);
     
-    // Store in app.locals
-    app.locals.products = allProducts.map(product => ({
+    // Format products for storage
+    const formattedProducts = allProducts.map(product => ({
       id: product.id,
       title: product.title,
       handle: product.handle,
@@ -429,11 +404,17 @@ app.post('/api/products/sync', async (req, res) => {
       })) || []
     }));
     
-    console.log(`Synchronized ${app.locals.products.length} products`);
+    // Store in database
+    await storeProducts(formattedProducts);
+    
+    // Update in-memory
+    app.locals.products = formattedProducts;
+    
+    console.log(`Synchronized ${formattedProducts.length} products`);
     
     res.json({ 
       success: true, 
-      message: `Synchronized ${app.locals.products.length} products` 
+      message: `Synchronized ${formattedProducts.length} products` 
     });
   } catch (error) {
     console.error('Error syncing products:', error);
@@ -442,17 +423,18 @@ app.post('/api/products/sync', async (req, res) => {
 });
 
 // Purchase Order routes
-app.get('/api/purchase-orders', (req, res) => {
+app.get('/api/purchase-orders', async (req, res) => {
   try {
-    console.log(`GET /api/purchase-orders - returning: ${app.locals.purchaseOrders?.length || 0} orders`);
-    res.json(app.locals.purchaseOrders || []);
+    const purchaseOrders = await getPurchaseOrders();
+    console.log(`GET /api/purchase-orders - returning: ${purchaseOrders.length} orders`);
+    res.json(purchaseOrders);
   } catch (error) {
     console.error('Error fetching purchase orders:', error);
     res.status(500).json({ error: 'Error fetching purchase orders', message: error.message });
   }
 });
 
-app.post('/api/purchase-orders/simulate', (req, res) => {
+app.post('/api/purchase-orders/simulate', async (req, res) => {
   try {
     console.log('POST /api/purchase-orders/simulate');
     
@@ -464,9 +446,12 @@ app.post('/api/purchase-orders/simulate', (req, res) => {
       createdAt: new Date().toISOString()
     };
     
+    // Get all product suppliers
+    const allProductSuppliers = await getProductSuppliers();
+    
     // Group suppliers by product
     const productSuppliers = {};
-    app.locals.productSuppliers.forEach(ps => {
+    allProductSuppliers.forEach(ps => {
       if (!productSuppliers[ps.productId]) {
         productSuppliers[ps.productId] = [];
       }
@@ -498,7 +483,7 @@ app.post('/api/purchase-orders/simulate', (req, res) => {
         let po = pos.find(p => p.supplierId === selectedSupplier.supplierId);
         if (!po) {
           po = {
-            poNumber: 'PO-' + Date.now() + '-' + selectedSupplier.supplierId.substr(0, 4),
+            poNumber: 'PO-' + Date.now() + '-' + selectedSupplier.supplierId.substring(0, 4),
             supplierId: selectedSupplier.supplierId,
             supplierName: selectedSupplier.supplierName,
             items: [],
@@ -517,17 +502,24 @@ app.post('/api/purchase-orders/simulate', (req, res) => {
         });
         
         // Update stock (for simulation)
-        selectedSupplier.stockLevel = Math.max(0, selectedSupplier.stockLevel - item.quantity);
+        const newStockLevel = Math.max(0, selectedSupplier.stockLevel - item.quantity);
+        updateProductSupplierStock(selectedSupplier.id, newStockLevel);
+        
+        // Update in-memory object too
+        selectedSupplier.stockLevel = newStockLevel;
       }
     });
     
     // Add POs to storage
-    app.locals.purchaseOrders.push(...pos);
-    console.log(`Generated ${pos.length} purchase orders`);
+    if (pos.length > 0) {
+      await addPurchaseOrders(pos);
+    }
     
-    // Save updated data to files
-    saveDataToFile('product-suppliers.json', app.locals.productSuppliers);
-    saveDataToFile('purchase-orders.json', app.locals.purchaseOrders);
+    // Update in-memory data
+    app.locals.productSuppliers = await getProductSuppliers();
+    app.locals.purchaseOrders = await getPurchaseOrders();
+    
+    console.log(`Generated ${pos.length} purchase orders`);
     
     res.status(201).json({
       orderId: order.id,
@@ -543,32 +535,43 @@ app.post('/api/purchase-orders/simulate', (req, res) => {
 });
 
 // Debug endpoint to view app state
-app.get('/api/debug/app-state', (req, res) => {
-  const state = {
-    suppliers: {
-      count: app.locals.suppliers.length,
-      data: app.locals.suppliers
-    },
-    productSuppliers: {
-      count: app.locals.productSuppliers.length,
-      uniqueProductIds: [...new Set(app.locals.productSuppliers.map(ps => ps.productId))],
-      data: app.locals.productSuppliers
-    },
-    purchaseOrders: {
-      count: app.locals.purchaseOrders.length
-    },
-    products: {
-      count: app.locals.products?.length || 0
-    },
-    storageMode: app.locals.useInMemoryStorage ? 'in-memory' : 'mongodb',
-    dataFiles: {
-      suppliersFile: fs.existsSync(path.join(__dirname, '..', 'data', 'suppliers.json')),
-      productSuppliersFile: fs.existsSync(path.join(__dirname, '..', 'data', 'product-suppliers.json')),
-      purchaseOrdersFile: fs.existsSync(path.join(__dirname, '..', 'data', 'purchase-orders.json'))
-    }
-  };
-  
-  res.json(state);
+app.get('/api/debug/app-state', async (req, res) => {
+  try {
+    const suppliers = await getSuppliers();
+    const productSuppliers = await getProductSuppliers();
+    const purchaseOrders = await getPurchaseOrders();
+    const products = await getProducts();
+    
+    const state = {
+      suppliers: {
+        count: suppliers.length,
+        data: suppliers
+      },
+      productSuppliers: {
+        count: productSuppliers.length,
+        uniqueProductIds: [...new Set(productSuppliers.map(ps => ps.productId))],
+        data: productSuppliers
+      },
+      purchaseOrders: {
+        count: purchaseOrders.length
+      },
+      products: {
+        count: products?.length || 0
+      },
+      storageMode: app.locals.useInMemoryStorage ? 'file-based' : 'mongodb',
+      dbInfo: {
+        type: 'LowDB',
+        location: process.env.NODE_ENV === 'production' 
+          ? '/tmp/cycle3-shopify-db.json'
+          : path.join(__dirname, '..', 'data', 'cycle3-shopify-db.json')
+      }
+    };
+    
+    res.json(state);
+  } catch (error) {
+    console.error('Error getting debug info:', error);
+    res.status(500).json({ error: 'Error getting debug info', message: error.message });
+  }
 });
 
 // Webhook routes
@@ -580,7 +583,7 @@ app.get('/test-connection', (req, res) => {
   res.status(200).json({ 
     status: 'connected',
     message: 'API is connected and working properly',
-    storage: app.locals.useInMemoryStorage ? 'in-memory' : 'mongodb',
+    storage: app.locals.useInMemoryStorage ? 'file-based' : 'mongodb',
     time: new Date().toISOString()
   });
 });
@@ -645,8 +648,8 @@ app.use((req, res) => {
     
     console.log(`Fetched ${allProducts.length} products from shop`);
     
-    // Store in app.locals
-    app.locals.products = allProducts.map(product => ({
+    // Format and store products
+    const formattedProducts = allProducts.map(product => ({
       id: product.id,
       title: product.title,
       handle: product.handle,
@@ -659,7 +662,12 @@ app.use((req, res) => {
       })) || []
     }));
     
-    console.log(`Successfully synchronized ${app.locals.products.length} products from Shopify`);
+    await storeProducts(formattedProducts);
+    
+    // Update in-memory
+    app.locals.products = formattedProducts;
+    
+    console.log(`Successfully synchronized ${formattedProducts.length} products from Shopify`);
   } catch (error) {
     console.error('Initial product sync failed, but continuing app startup:', error.message);
   }
@@ -677,7 +685,7 @@ app.use((req, res) => {
   app.listen(port, () => {
     console.log(`Server running on port ${port}`);
     console.log(`Public directory serving from: ${publicPath}`);
-    console.log(`Storage mode: ${app.locals.useInMemoryStorage ? 'in-memory (MongoDB not connected)' : 'mongodb'}`);
+    console.log(`Storage mode: ${app.locals.useInMemoryStorage ? 'file-based (LowDB)' : 'mongodb'}`);
   });
 })();
 
