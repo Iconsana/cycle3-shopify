@@ -9,8 +9,9 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // Use Render's /tmp directory for file storage in production
+// But make the path more specific to our app to avoid conflicts
 const dbPath = process.env.NODE_ENV === 'production' 
-  ? path.join('/tmp', 'cycle3-shopify-db.json')
+  ? path.join('/tmp', 'cycle3-shopify-db-v2.json')
   : path.join(__dirname, '..', '..', 'data', 'cycle3-shopify-db.json');
 
 // Create database directory if it doesn't exist
@@ -33,13 +34,18 @@ const defaultData = {
   syncTimestamp: null
 };
 
-// Create database instance
-let db;
+// Single database instance that will be shared across the application
+let dbInstance = null;
 
 /**
  * Initialize the database with default structure
  */
 export const initDB = async () => {
+  // If we already have an initialized instance, return it
+  if (dbInstance) {
+    return dbInstance;
+  }
+
   try {
     console.log(`Initializing database at: ${dbPath}`);
     
@@ -67,26 +73,36 @@ export const initDB = async () => {
 
     // Create adapter and db instances
     const adapter = new JSONFile(dbPath);
-    db = new Low(adapter, defaultData); // Pass default data to prevent "missing default data" error
+    dbInstance = new Low(adapter, defaultData); // Pass default data to prevent "missing default data" error
     
     // Load existing data
-    await db.read();
+    await dbInstance.read();
     
     // Set default structure if none exists
-    db.data ||= defaultData;
+    dbInstance.data ||= defaultData;
     
     // Write back to ensure file exists
-    await db.write();
+    await dbInstance.write();
     
     console.log(`Database initialized successfully at: ${dbPath}`);
-    return db;
+    return dbInstance;
   } catch (error) {
     console.error('Error initializing database:', error);
     // Create a memory-only fallback if file operations fail
     console.log('Creating in-memory database as fallback');
-    db = { data: {...defaultData}, write: async () => true, read: async () => true };
-    return db;
+    dbInstance = { data: {...defaultData}, write: async () => true, read: async () => true };
+    return dbInstance;
   }
+};
+
+/**
+ * Get the database instance (initializing if needed)
+ */
+export const getDB = async () => {
+  if (!dbInstance) {
+    return await initDB();
+  }
+  return dbInstance;
 };
 
 /**
@@ -94,8 +110,8 @@ export const initDB = async () => {
  */
 export const getSuppliers = async () => {
   try {
-    if (!db) await initDB();
-    await db.read();
+    const db = await getDB();
+    await db.read(); // Always read fresh data to avoid stale state
     return db.data.suppliers || [];
   } catch (error) {
     console.error('Error getting suppliers:', error);
@@ -108,8 +124,19 @@ export const getSuppliers = async () => {
  */
 export const addSupplier = async (supplier) => {
   try {
-    if (!db) await initDB();
+    const db = await getDB();
     await db.read();
+    
+    // Ensure the supplier has an ID
+    if (!supplier.id) {
+      supplier.id = Date.now().toString();
+    }
+    
+    // Add timestamps if not present
+    if (!supplier.createdAt) {
+      supplier.createdAt = new Date().toISOString();
+    }
+    
     db.data.suppliers.push(supplier);
     await db.write();
     return supplier;
@@ -124,8 +151,16 @@ export const addSupplier = async (supplier) => {
  */
 export const getProductSuppliers = async (productId = null) => {
   try {
-    if (!db) await initDB();
+    const db = await getDB();
     await db.read();
+    
+    // Log info for debugging
+    if (productId) {
+      console.log(`Getting suppliers for product: ${productId}`);
+      console.log(`Total product-supplier relationships: ${db.data.productSuppliers.length}`);
+      console.log(`All product IDs: ${[...new Set(db.data.productSuppliers.map(ps => ps.productId))].join(', ')}`);
+    }
+    
     if (productId) {
       return db.data.productSuppliers.filter(ps => ps.productId === productId) || [];
     }
@@ -141,10 +176,31 @@ export const getProductSuppliers = async (productId = null) => {
  */
 export const addProductSupplier = async (productSupplier) => {
   try {
-    if (!db) await initDB();
+    const db = await getDB();
     await db.read();
+    
+    // Ensure the relationship has an ID
+    if (!productSupplier.id) {
+      productSupplier.id = Date.now().toString();
+    }
+    
+    // Add timestamps if not present
+    if (!productSupplier.createdAt) {
+      productSupplier.createdAt = new Date().toISOString();
+    }
+    
+    // Make sure productId is stored as a string for consistent comparison
+    if (productSupplier.productId) {
+      productSupplier.productId = String(productSupplier.productId);
+    }
+    
+    console.log(`Adding product-supplier relationship: ProductID=${productSupplier.productId}, SupplierName=${productSupplier.name || productSupplier.supplierName}`);
+    
     db.data.productSuppliers.push(productSupplier);
     await db.write();
+    
+    // Log after adding
+    console.log(`Total product-supplier relationships after add: ${db.data.productSuppliers.length}`);
     return productSupplier;
   } catch (error) {
     console.error('Error adding product supplier:', error);
@@ -157,7 +213,7 @@ export const addProductSupplier = async (productSupplier) => {
  */
 export const getPurchaseOrders = async () => {
   try {
-    if (!db) await initDB();
+    const db = await getDB();
     await db.read();
     return db.data.purchaseOrders || [];
   } catch (error) {
@@ -171,7 +227,7 @@ export const getPurchaseOrders = async () => {
  */
 export const addPurchaseOrders = async (orders) => {
   try {
-    if (!db) await initDB();
+    const db = await getDB();
     await db.read();
     db.data.purchaseOrders.push(...orders);
     await db.write();
@@ -183,15 +239,16 @@ export const addPurchaseOrders = async (orders) => {
 };
 
 /**
- * Update product suppliers
+ * Update product supplier stock level
  */
 export const updateProductSupplierStock = async (productSupplierId, newStockLevel) => {
   try {
-    if (!db) await initDB();
+    const db = await getDB();
     await db.read();
     const index = db.data.productSuppliers.findIndex(ps => ps.id === productSupplierId);
     if (index !== -1) {
       db.data.productSuppliers[index].stockLevel = newStockLevel;
+      db.data.productSuppliers[index].updatedAt = new Date().toISOString();
       await db.write();
       return db.data.productSuppliers[index];
     }
@@ -207,12 +264,19 @@ export const updateProductSupplierStock = async (productSupplierId, newStockLeve
  */
 export const storeProducts = async (products) => {
   try {
-    if (!db) await initDB();
+    const db = await getDB();
     await db.read();
-    db.data.products = products;
+    
+    // Ensure product IDs are strings for consistent comparison
+    const formattedProducts = products.map(p => ({
+      ...p,
+      id: String(p.id)
+    }));
+    
+    db.data.products = formattedProducts;
     db.data.syncTimestamp = new Date().toISOString();
     await db.write();
-    return products;
+    return formattedProducts;
   } catch (error) {
     console.error('Error storing products:', error);
     throw error;
@@ -224,7 +288,7 @@ export const storeProducts = async (products) => {
  */
 export const getProducts = async () => {
   try {
-    if (!db) await initDB();
+    const db = await getDB();
     await db.read();
     return db.data.products || [];
   } catch (error) {
@@ -233,4 +297,19 @@ export const getProducts = async () => {
   }
 };
 
-export default db;
+/**
+ * Get a single product by ID
+ */
+export const getProductById = async (productId) => {
+  try {
+    const db = await getDB();
+    await db.read();
+    return db.data.products.find(p => String(p.id) === String(productId)) || null;
+  } catch (error) {
+    console.error(`Error getting product ${productId}:`, error);
+    return null;
+  }
+};
+
+// Export the db instance for direct access if needed
+export default { getDB, initDB };
