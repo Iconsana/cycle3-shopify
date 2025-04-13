@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multi-Supplier Management Debug</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100">
+    <div class="container mx-auto px-4 py-8 max-w-5xl">
+        <h1 class="text-3xl font-bold mb-8">System Diagnostic Tools</h1>
+        
+        <!-- Status Panel -->
+        <div class="bg-white rounded-lg shadow-md p-6 mb-8">
+            <h2 class="text-xl font-semibold mb-4">System Status</h2>
+            <div class="flex flex-wrap gap-4">
+                <button id="testAPI" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
+                    Test API Connection
+                </button>
+                <button id="testDB" class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600">
+                    Test Database
+                </button>
+                <button id="testEnv" class="bg-purple-500 text-white px-4 py-2 rounded hover:bg-purple-600">
+                    Check Environment
+                </button>
+                <button id="clearLog" class="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600">
+                    Clear Log
+                </button>
+            </div>
+            <div id="statusOutput" class="mt-4 p-4 bg-gray-100 rounded overflow-auto max-h-60 font-mono text-sm">
+                Ready for testing. Click a button to begin...
+            </div>
+        </div>
+        
+        <!-- Database Inspector -->
+        <div class="bg-white rounded-lg shadow-md p-6 mb-8">
+            <h2 class="text-xl font-semibold mb-4">Database Inspector</h2>
+            <div class="flex flex-wrap gap-4 mb-4">
+                <button data-collection="suppliers" class="view-collection bg-indigo-500 text-white px-4 py-2 rounded hover:bg-indigo-600">
+                    View Suppliers
+                </button>
+                <button data-collection="productSuppliers" class="view-collection bg-indigo-500 text-white px-4 py-2 rounded hover:bg-indigo-600">
+                    View Product Suppliers
+                </button>
+                <button data-collection="purchaseOrders" class="view-collection bg-indigo-500 text-white px-4 py-2 rounded hover:bg-indigo-600">
+                    View Purchase Orders
+                </button>
+                <button data-collection="products" class="view-collection bg-indigo-500 text-white px-4 py-2 rounded hover:bg-indigo-600">
+                    View Products
+                </button>
+            </div>
+            <div id="dbInspectorOutput" class="p-4 bg-gray-100 rounded overflow-auto max-h-96 font-mono text-sm">
+                Select a collection to view...
+            </div>
+        </div>
+        
+        <!-- Quick Fixes -->
+        <div class="bg-white rounded-lg shadow-md p-6 mb-8">
+            <h2 class="text-xl font-semibold mb-4">Quick Fixes</h2>
+            <div class="flex flex-wrap gap-4">
+                <button id="initializeDB" class="bg-yellow-500 text-white px-4 py-2 rounded hover:bg-yellow-600">
+                    Initialize DB Structure
+                </button>
+                <button id="createSampleSupplier" class="bg-yellow-500 text-white px-4 py-2 rounded hover:bg-yellow-600">
+                    Create Sample Supplier
+                </button>
+                <button id="createSampleProductSupplier" class="bg-yellow-500 text-white px-4 py-2 rounded hover:bg-yellow-600">
+                    Create Sample Product-Supplier
+                </button>
+            </div>
+            <div id="fixOutput" class="mt-4 p-4 bg-gray-100 rounded overflow-auto max-h-60 font-mono text-sm">
+                Ready to apply quick fixes...
+            </div>
+        </div>
+        
+        <!-- Direct API Call -->
+        <div class="bg-white rounded-lg shadow-md p-6">
+            <h2 class="text-xl font-semibold mb-4">Direct API Call</h2>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                <div class="md:col-span-2">
+                    <label class="block text-sm font-medium mb-1">Endpoint</label>
+                    <input type="text" id="apiEndpoint" value="/test-connection" class="w-full p-2 border rounded">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1">Method</label>
+                    <select id="apiMethod" class="w-full p-2 border rounded">
+                        <option value="GET">GET</option>
+                        <option value="POST">POST</option>
+                        <option value="PUT">PUT</option>
+                        <option value="DELETE">DELETE</option>
+                    </select>
+                </div>
+                <div class="md:col-span-3">
+                    <label class="block text-sm font-medium mb-1">Request Body (JSON, for POST/PUT)</label>
+                    <textarea id="apiBody" rows="4" class="w-full p-2 border rounded font-mono text-sm">{
+  "name": "Test Supplier",
+  "priority": 1,
+  "price": 100,
+  "stockLevel": 10
+}</textarea>
+                </div>
+            </div>
+            <button id="sendApiRequest" class="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600">
+                Send Request
+            </button>
+            <div id="apiOutput" class="mt-4 p-4 bg-gray-100 rounded overflow-auto max-h-96 font-mono text-sm">
+                API response will appear here...
+            </div>
+        </div>
+        
+        <!-- Navigation Footer -->
+        <div class="mt-8 flex justify-between">
+            <a href="/" class="text-blue-500 hover:underline">Back to Home</a>
+            <a href="/test" class="text-blue-500 hover:underline">Go to Test Interface</a>
+        </div>
+    </div>
+
+    <script>
+        // Status Panel
+        document.getElementById('testAPI').addEventListener('click', async () => {
+            const output = document.getElementById('statusOutput');
+            output.textContent = 'Testing API connection...';
+            output.className = 'mt-4 p-4 bg-gray-100 rounded overflow-auto max-h-60 font-mono text-sm';
+            
+            try {
+                const response = await fetch('/test-connection');
+                const data = await response.json();
+                
+                output.textContent = '✅ API Connection Successful!\n\n' + JSON.stringify(data, null, 2);
+                output.className = 'mt-4 p-4 bg-green-100 rounded overflow-auto max-h-60 font-mono text-sm';
+            } catch (error) {
+                output.textContent = '❌ API Connection Failed: ' + error.message;
+                output.className = 'mt-4 p-4 bg-red-100 rounded overflow-auto max-h-60 font-mono text-sm';
+            }
+        });
+        
+        document.getElementById('testDB').addEventListener('click', async () => {
+            const output = document.getElementById('statusOutput');
+            output.textContent = 'Testing database connection...';
+            output.className = 'mt-4 p-4 bg-gray-100 rounded overflow-auto max-h-60 font-mono text-sm';
+            
+            try {
+                const response = await fetch('/api/debug/app-state');
+                const data = await response.json();
+                
+                output.textContent = '✅ Database Connection Successful!\n\n' + JSON.stringify(data, null, 2);
+                output.className = 'mt-4 p-4 bg-green-100 rounded overflow-auto max-h-60 font-mono text-sm';
+            } catch (error) {
+                output.textContent = '❌ Database Connection Failed: ' + error.message;
+                output.className = 'mt-4 p-4 bg-red-100 rounded overflow-auto max-h-60 font-mono text-sm';
+            }
+        });
+        
+        document.getElementById('testEnv').addEventListener('click', async () => {
+            const output = document.getElementById('statusOutput');
+            output.textContent = 'Checking environment variables...';
+            output.className = 'mt-4 p-4 bg-gray-100 rounded overflow-auto max-h-60 font-mono text-sm';
+            
+            try {
+                const response = await fetch('/api/debug/env');
+                const data = await response.json();
+                
+                // Replace actual keys/tokens with asterisks for security
+                if (data.SHOPIFY_API_KEY) {
+                    data.SHOPIFY_API_KEY = data.SHOPIFY_API_KEY.substring(0, 4) + '...' + data.SHOPIFY_API_KEY.substring(data.SHOPIFY_API_KEY.length - 4);
+                }
+                if (data.SHOPIFY_API_SECRET) {
+                    data.SHOPIFY_API_SECRET = '********';
+                }
+                if (data.SHOPIFY_ACCESS_TOKEN) {
+                    data.SHOPIFY_ACCESS_TOKEN = data.SHOPIFY_ACCESS_TOKEN.substring(0, 4) + '...' + data.SHOPIFY_ACCESS_TOKEN.substring(data.SHOPIFY_ACCESS_TOKEN.length - 4);
+                }
+                
+                output.textContent = '✅ Environment Check:\n\n' + JSON.stringify(data, null, 2);
+                output.className = 'mt-4 p-4 bg-green-100 rounded overflow-auto max-h-60 font-mono text-sm';
+            } catch (error) {
+                output.textContent = '❌ Environment Check Failed: ' + error.message + '\n\nThis endpoint might not be available.';
+                output.className = 'mt-4 p-4 bg-red-100 rounded overflow-auto max-h-60 font-mono text-sm';
+            }
+        });
+        
+        document.getElementById('clearLog').addEventListener('click', () => {
+            document.getElementById('statusOutput').textContent = 'Log cleared.';
+            document.getElementById('statusOutput').className = 'mt-4 p-4 bg-gray-100 rounded overflow-auto max-h-60 font-mono text-sm';
+        });
+        
+        // Database Inspector
+        document.querySelectorAll('.view-collection').forEach(button => {
+            button.addEventListener('click', async () => {
+                const collection = button.getAttribute('data-collection');
+                const output = document.getElementById('dbInspectorOutput');
+                output.textContent = `Loading ${collection}...`;
+                
+                try {
+                    let url;
+                    switch(collection) {
+                        case 'suppliers':
+                            url = '/api/suppliers';
+                            break;
+                        case 'productSuppliers':
+                            url = '/api/product-suppliers';
+                            break;
+                        case 'purchaseOrders':
+                            url = '/api/purchase-orders';
+                            break;
+                        case 'products':
+                            url = '/api/products';
+                            break;
+                        default:
+                            throw new Error('Unknown collection');
+                    }
+                    
+                    const response = await fetch(url);
+                    const data = await response.json();
+                    
+                    output.textContent = `${collection} (${data.length} items):\n\n${JSON.stringify(data, null, 2)}`;
+                } catch (error) {
+                    output.textContent = `Error fetching ${collection}: ${error.message}`;
+                }
+            });
+        });
+        
+        // Quick Fixes
+        document.getElementById('initializeDB').addEventListener('click', async () => {
+            const output = document.getElementById('fixOutput');
+            output.textContent = 'Initializing database structure...';
+            
+            try {
+                const response = await fetch('/api/debug/init-db', {
+                    method: 'POST'
+                });
+                const data = await response.json();
+                
+                output.textContent = 'Database initialization: ' + JSON.stringify(data, null, 2);
+                
+                // Refresh db state in the inspector
+                document.querySelector('[data-collection="suppliers"]').click();
+            } catch (error) {
+                output.textContent = 'Failed to initialize database: ' + error.message + '\n\nThis endpoint might not be available.';
+            }
+        });
+        
+        document.getElementById('createSampleSupplier').addEventListener('click', async () => {
+            const output = document.getElementById('fixOutput');
+            output.textContent = 'Creating sample supplier...';
+            
+            try {
+                const response = await fetch('/api/suppliers', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        name: 'Sample Supplier ' + new Date().toISOString().substring(0, 19),
+                        email: 'sample@example.com',
+                        leadTime: 3,
+                        apiType: 'email'
+                    })
+                });
+                const data = await response.json();
+                
+                output.textContent = 'Sample supplier created: ' + JSON.stringify(data, null, 2);
+                
+                // Refresh suppliers in the inspector
+                document.querySelector('[data-collection="suppliers"]').click();
+            } catch (error) {
+                output.textContent = 'Failed to create sample supplier: ' + error.message;
+            }
+        });
+        
+        document.getElementById('createSampleProductSupplier').addEventListener('click', async () => {
+            const output = document.getElementById('fixOutput');
+            output.textContent = 'Creating sample product-supplier relationship...';
+            
+            try {
+                // First get a random product ID (this is a test ID if none found)
+                let productId = 'df1730sl-20a';
+                
+                try {
+                    const productsResponse = await fetch('/api/products');
+                    const products = await productsResponse.json();
+                    if (products.length > 0) {
+                        const randomProduct = products[Math.floor(Math.random() * products.length)];
+                        productId = randomProduct.id;
+                    }
+                } catch (productError) {
+                    console.error('Failed to get products, using default ID:', productError);
+                }
+                
+                // Now create the product-supplier
+                const response = await fetch(`/api/products/${productId}/suppliers`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        name: 'Sample Product Supplier ' + new Date().toISOString().substring(11, 19),
+                        priority: Math.floor(Math.random() * 5) + 1,
+                        price: Math.floor(Math.random() * 10000) / 100,
+                        stockLevel: Math.floor(Math.random() * 100)
+                    })
+                });
+                const data = await response.json();
+                
+                output.textContent = 'Sample product-supplier created: ' + JSON.stringify(data, null, 2);
+                
+                // Refresh product-suppliers in the inspector
+                document.querySelector('[data-collection="productSuppliers"]').click();
+            } catch (error) {
+                output.textContent = 'Failed to create sample product-supplier: ' + error.message;
+            }
+        });
+        
+        // Direct API Call
+        document.getElementById('sendApiRequest').addEventListener('click', async () => {
+            const output = document.getElementById('apiOutput');
+            const endpoint = document.getElementById('apiEndpoint').value;
+            const method = document.getElementById('apiMethod').value;
+            const bodyEl = document.getElementById('apiBody');
+            
+            output.textContent = `Sending ${method} request to ${endpoint}...`;
+            
+            try {
+                const options = {
+                    method: method
+                };
+                
+                // Add body for POST/PUT requests
+                if (method === 'POST' || method === 'PUT') {
+                    try {
+                        const bodyData = JSON.parse(bodyEl.value);
+                        options.headers = {
+                            'Content-Type': 'application/json'
+                        };
+                        options.body = JSON.stringify(bodyData);
+                    } catch (parseError) {
+                        output.textContent = 'Invalid JSON in request body: ' + parseError.message;
+                        return;
+                    }
+                }
+                
+                const response = await fetch(endpoint, options);
+                
+                // Try to parse as JSON first
+                try {
+                    const data = await response.json();
+                    output.textContent = `Response (${response.status} ${response.statusText}):\n\n${JSON.stringify(data, null, 2)}`;
+                } catch (jsonError) {
+                    // If not JSON, get as text
+                    const text = await response.text();
+                    output.textContent = `Response (${response.status} ${response.statusText}):\n\n${text}`;
+                }
+            } catch (error) {
+                output.textContent = 'Request failed: ' + error.message;
+            }
+        });
+    </script>
+</body>
+</html>
