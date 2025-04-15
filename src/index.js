@@ -8,6 +8,7 @@ import { registerWebhooks } from './services/webhook-registration.js';
 import shopify from '../config/shopify.js';
 import { 
   initDB, 
+  getDB,
   getSuppliers, 
   addSupplier, 
   getProductSuppliers, 
@@ -16,7 +17,8 @@ import {
   addPurchaseOrders,
   updateProductSupplierStock,
   storeProducts,
-  getProducts
+  getProducts,
+  getProductById
 } from './services/database.js';
 
 // ES Module fix for __dirname
@@ -127,6 +129,11 @@ app.get('/products', (req, res) => {
   res.sendFile(path.join(publicPath, 'product-management.html'));
 });
 
+// Product Detail UI Route
+app.get('/product-detail', (req, res) => {
+  res.sendFile(path.join(publicPath, 'product-detail.html'));
+});
+
 // API Routes for Suppliers
 app.get('/api/suppliers', async (req, res) => {
   try {
@@ -162,6 +169,112 @@ app.post('/api/suppliers', async (req, res) => {
   } catch (error) {
     console.error('Error adding supplier:', error);
     res.status(500).json({ error: 'Error adding supplier', message: error.message });
+  }
+});
+
+// DELETE a supplier
+app.delete('/api/suppliers/:supplierId', async (req, res) => {
+  try {
+    const { supplierId } = req.params;
+    const db = await getDB();
+    await db.read();
+    
+    // Find supplier index
+    const index = db.data.suppliers.findIndex(s => s.id === supplierId);
+    
+    if (index === -1) {
+      return res.status(404).json({ error: 'Supplier not found' });
+    }
+    
+    // Remove supplier
+    const removedSupplier = db.data.suppliers.splice(index, 1)[0];
+    
+    // Also remove any product-supplier relationships with this supplier
+    db.data.productSuppliers = db.data.productSuppliers.filter(ps => 
+      ps.supplierId !== supplierId
+    );
+    
+    await db.write();
+    
+    // Update app.locals
+    app.locals.suppliers = db.data.suppliers;
+    app.locals.productSuppliers = db.data.productSuppliers;
+    
+    res.json({ 
+      message: 'Supplier deleted successfully',
+      supplier: removedSupplier
+    });
+  } catch (error) {
+    console.error('Error deleting supplier:', error);
+    res.status(500).json({ error: 'Error deleting supplier', message: error.message });
+  }
+});
+
+// DELETE a product-supplier relationship
+app.delete('/api/products/:productId/suppliers/:relationshipId', async (req, res) => {
+  try {
+    const { productId, relationshipId } = req.params;
+    const db = await getDB();
+    await db.read();
+    
+    // Find relationship index
+    const index = db.data.productSuppliers.findIndex(ps => 
+      ps.id === relationshipId && ps.productId === productId
+    );
+    
+    if (index === -1) {
+      return res.status(404).json({ error: 'Relationship not found' });
+    }
+    
+    // Remove relationship
+    const removedRelationship = db.data.productSuppliers.splice(index, 1)[0];
+    
+    await db.write();
+    
+    // Update app.locals
+    app.locals.productSuppliers = db.data.productSuppliers;
+    
+    res.json({ 
+      message: 'Supplier removed from product successfully',
+      relationship: removedRelationship
+    });
+  } catch (error) {
+    console.error('Error removing supplier from product:', error);
+    res.status(500).json({ error: 'Error removing supplier', message: error.message });
+  }
+});
+
+// Get products for a specific supplier
+app.get('/api/suppliers/:supplierId/products', async (req, res) => {
+  try {
+    const { supplierId } = req.params;
+    const db = await getDB();
+    await db.read();
+    
+    // Find all product-supplier relationships for this supplier
+    const relationships = db.data.productSuppliers.filter(ps => 
+      ps.supplierId === supplierId
+    );
+    
+    // Enrich with product data if available
+    const enrichedRelationships = await Promise.all(relationships.map(async (rel) => {
+      // Try to find product in our database
+      const product = db.data.products.find(p => String(p.id) === String(rel.productId));
+      
+      if (product) {
+        return {
+          ...rel,
+          title: product.title
+        };
+      }
+      
+      return rel;
+    }));
+    
+    res.json(enrichedRelationships);
+  } catch (error) {
+    console.error(`Error fetching products for supplier ${req.params.supplierId}:`, error);
+    res.status(500).json({ error: 'Error fetching products', message: error.message });
   }
 });
 
@@ -208,6 +321,84 @@ app.post('/api/product-suppliers', async (req, res) => {
   }
 });
 
+// Get a specific product by ID (enhanced with supplier information)
+app.get('/api/products/:productId/detail', async (req, res) => {
+  try {
+    const { productId } = req.params;
+    console.log(`GET /api/products/${productId}/detail`);
+    
+    const db = await getDB();
+    await db.read();
+    
+    // Find the product in our local database
+    const product = db.data.products.find(p => String(p.id) === String(productId));
+    
+    if (!product) {
+      // If not found locally, try to fetch from Shopify
+      try {
+        const client = new shopify.clients.Rest({
+          session: {
+            shop: process.env.SHOPIFY_SHOP_NAME,
+            accessToken: process.env.SHOPIFY_ACCESS_TOKEN
+          }
+        });
+
+        const response = await client.get({
+          path: `products/${productId}`
+        });
+
+        if (response.body.product) {
+          // Get suppliers for this product
+          const suppliers = db.data.productSuppliers.filter(ps => 
+            String(ps.productId) === String(productId)
+          );
+          
+          // Return product with suppliers
+          return res.json({
+            product: response.body.product,
+            suppliers: suppliers
+          });
+        }
+      } catch (shopifyError) {
+        console.error(`Error fetching product from Shopify:`, shopifyError);
+      }
+      
+      return res.status(404).json({ error: 'Product not found' });
+    }
+    
+    // Get suppliers for this product
+    const suppliers = db.data.productSuppliers.filter(ps => 
+      String(ps.productId) === String(productId)
+    );
+    
+    // Enrich suppliers with full supplier details if available
+    const enrichedSuppliers = await Promise.all(suppliers.map(async (ps) => {
+      if (ps.supplierId) {
+        const supplier = db.data.suppliers.find(s => s.id === ps.supplierId);
+        if (supplier) {
+          return {
+            ...ps,
+            supplierName: supplier.name,
+            leadTime: supplier.leadTime
+          };
+        }
+      }
+      return ps;
+    }));
+    
+    res.json({
+      product,
+      suppliers: enrichedSuppliers
+    });
+  } catch (error) {
+    console.error(`Error fetching product detail ${req.params.productId}:`, error);
+    res.status(500).json({
+      error: 'Failed to fetch product detail',
+      message: error.message
+    });
+  }
+});
+
 // API routes for specific product's suppliers
 app.get('/api/products/:productId/suppliers', async (req, res) => {
   try {
@@ -230,52 +421,157 @@ app.get('/api/products/:productId/suppliers', async (req, res) => {
   }
 });
 
+// Add a supplier to a product with proper two-way connection
 app.post('/api/products/:productId/suppliers', async (req, res) => {
   try {
     const { productId } = req.params;
     const supplierData = req.body;
     console.log(`POST /api/products/${productId}/suppliers - data:`, supplierData);
 
-    // Find the supplier name if supplierId is provided
-    const suppliers = await getSuppliers();
+    const db = await getDB();
+    await db.read();
+    
+    // Validate if product exists
+    const product = db.data.products.find(p => String(p.id) === String(productId));
+    if (!product && !productId.includes('gid://')) {
+      // Only validate if not using a Shopify GID
+      return res.status(404).json({ error: 'Product not found' });
+    }
+    
+    // Find supplier if supplierId is provided
     let supplierName = supplierData.name;
-    if (supplierData.supplierId) {
-      const supplier = suppliers.find(s => s.id === supplierData.supplierId);
+    let supplierId = supplierData.supplierId;
+    
+    if (supplierId) {
+      const supplier = db.data.suppliers.find(s => s.id === supplierId);
       if (supplier) {
         supplierName = supplier.name;
       }
+    } else if (supplierName) {
+      // If supplierId is not provided but name is, try to find or create supplier
+      const existingSupplier = db.data.suppliers.find(s => 
+        s.name.toLowerCase() === supplierName.toLowerCase()
+      );
+      
+      if (existingSupplier) {
+        supplierId = existingSupplier.id;
+      } else {
+        // Create a new supplier
+        const newSupplier = {
+          id: Date.now().toString(),
+          name: supplierName,
+          email: supplierData.email || `${supplierName.replace(/[^a-z0-9]/gi, '').toLowerCase()}@example.com`,
+          leadTime: supplierData.leadTime || 3,
+          apiType: supplierData.apiType || 'email',
+          status: 'active',
+          createdAt: new Date().toISOString()
+        };
+        
+        db.data.suppliers.push(newSupplier);
+        supplierId = newSupplier.id;
+      }
     }
 
-    const newSupplier = {
+    // Check if this relationship already exists
+    const existingRelationship = db.data.productSuppliers.find(ps => 
+      String(ps.productId) === String(productId) && 
+      (ps.supplierId === supplierId || ps.name === supplierName)
+    );
+    
+    if (existingRelationship) {
+      // Update existing relationship
+      existingRelationship.priority = parseInt(supplierData.priority) || existingRelationship.priority;
+      existingRelationship.price = parseFloat(supplierData.price) || existingRelationship.price;
+      existingRelationship.stockLevel = parseInt(supplierData.stockLevel) || existingRelationship.stockLevel;
+      existingRelationship.updatedAt = new Date().toISOString();
+      
+      await db.write();
+      return res.json({
+        message: 'Supplier relationship updated',
+        relationship: existingRelationship
+      });
+    }
+
+    // Create new product-supplier relationship
+    const newRelationship = {
       id: Date.now().toString(),
-      productId,
-      supplierId: supplierData.supplierId,
-      supplierName: supplierName || supplierData.name || 'Unknown',
+      productId: String(productId),
+      supplierId: supplierId,
+      name: supplierName, // Keep name for backward compatibility
+      supplierName: supplierName,
       priority: parseInt(supplierData.priority) || 1,
       price: parseFloat(supplierData.price),
       stockLevel: parseInt(supplierData.stockLevel) || 0,
       createdAt: new Date().toISOString()
     };
+    
+    // Add product name if available
+    if (product) {
+      newRelationship.productName = product.title;
+    } else if (supplierData.productName) {
+      newRelationship.productName = supplierData.productName;
+    }
 
-    // Log before adding
-    const currentProductSuppliers = await getProductSuppliers();
-    console.log('Current productSuppliers count:', currentProductSuppliers.length);
-    console.log('Adding new supplier for product:', productId);
+    // Save to database
+    db.data.productSuppliers.push(newRelationship);
+    await db.write();
     
-    // Add to database
-    await addProductSupplier(newSupplier);
+    // Update app.locals for consistency
+    app.locals.productSuppliers = db.data.productSuppliers;
+    app.locals.suppliers = db.data.suppliers;
     
-    // Update in-memory
-    app.locals.productSuppliers = await getProductSuppliers();
-    
-    // Log after adding
-    const updatedProductSuppliers = await getProductSuppliers();
-    console.log('New productSuppliers count:', updatedProductSuppliers.length);
-    
-    res.status(201).json(newSupplier);
+    res.status(201).json(newRelationship);
   } catch (error) {
     console.error(`Error adding supplier for product ${req.params.productId}:`, error);
     res.status(500).json({ error: 'Error adding supplier', message: error.message });
+  }
+});
+
+// PATCH to update a product-supplier relationship (e.g., stock level)
+app.patch('/api/products/:productId/suppliers/:relationshipId', async (req, res) => {
+  try {
+    const { productId, relationshipId } = req.params;
+    const updateData = req.body;
+    
+    const db = await getDB();
+    await db.read();
+    
+    // Find relationship
+    const relationship = db.data.productSuppliers.find(ps => 
+      ps.id === relationshipId && String(ps.productId) === String(productId)
+    );
+    
+    if (!relationship) {
+      return res.status(404).json({ error: 'Relationship not found' });
+    }
+    
+    // Update fields
+    if (updateData.stockLevel !== undefined) {
+      relationship.stockLevel = parseInt(updateData.stockLevel);
+    }
+    
+    if (updateData.price !== undefined) {
+      relationship.price = parseFloat(updateData.price);
+    }
+    
+    if (updateData.priority !== undefined) {
+      relationship.priority = parseInt(updateData.priority);
+    }
+    
+    relationship.updatedAt = new Date().toISOString();
+    
+    await db.write();
+    
+    // Update app.locals
+    app.locals.productSuppliers = db.data.productSuppliers;
+    
+    res.json({
+      message: 'Relationship updated successfully',
+      relationship
+    });
+  } catch (error) {
+    console.error(`Error updating supplier for product ${req.params.productId}:`, error);
+    res.status(500).json({ error: 'Error updating supplier', message: error.message });
   }
 });
 
@@ -562,7 +858,7 @@ app.get('/api/debug/app-state', async (req, res) => {
       dbInfo: {
         type: 'LowDB',
         location: process.env.NODE_ENV === 'production' 
-          ? '/tmp/cycle3-shopify-db.json'
+          ? '/tmp/cycle3-shopify-db-v2.json'
           : path.join(__dirname, '..', 'data', 'cycle3-shopify-db.json')
       }
     };
@@ -570,123 +866,4 @@ app.get('/api/debug/app-state', async (req, res) => {
     res.json(state);
   } catch (error) {
     console.error('Error getting debug info:', error);
-    res.status(500).json({ error: 'Error getting debug info', message: error.message });
-  }
-});
-
-// Webhook routes
-app.use('/webhooks', webhookRoutes);
-
-// Test connection route
-app.get('/test-connection', (req, res) => {
-  console.log('GET /test-connection');
-  res.status(200).json({ 
-    status: 'connected',
-    message: 'API is connected and working properly',
-    storage: app.locals.useInMemoryStorage ? 'file-based' : 'mongodb',
-    time: new Date().toISOString()
-  });
-});
-
-// Error handling middleware
-app.use((err, req, res, next) => {
-  console.error('Error:', err);
-  res.status(500).json({
-    status: 'error',
-    message: err.message
-  });
-});
-
-// 404 handler - Return index.html for client-side routing
-app.use((req, res) => {
-  // If API route, return 404 JSON
-  if (req.path.startsWith('/api')) {
-    console.log(`404 API route not found: ${req.path}`);
-    return res.status(404).json({
-      status: 'error',
-      message: 'API Endpoint Not Found'
-    });
-  }
-  
-  // For all other routes, return the main index.html (for SPA routing)
-  console.log(`Serving index.html for path: ${req.path}`);
-  res.sendFile(path.join(publicPath, 'index.html'));
-});
-
-// Initial product sync at startup
-(async () => {
-  try {
-    console.log('Starting initial product sync...');
-    const client = new shopify.clients.Rest({
-      session: {
-        shop: process.env.SHOPIFY_SHOP_NAME,
-        accessToken: process.env.SHOPIFY_ACCESS_TOKEN
-      }
-    });
-    
-    // Fetch products from Shopify
-    let allProducts = [];
-    let params = { limit: 50 };
-    let hasNextPage = true;
-    
-    while (hasNextPage) {
-      const response = await client.get({
-        path: 'products',
-        query: params
-      });
-      
-      const products = response.body.products || [];
-      allProducts = [...allProducts, ...products];
-      
-      // Check if there's a next page
-      hasNextPage = false;
-      if (response.pageInfo?.nextPage?.query) {
-        params = response.pageInfo.nextPage.query;
-        hasNextPage = true;
-      }
-    }
-    
-    console.log(`Fetched ${allProducts.length} products from shop`);
-    
-    // Format and store products
-    const formattedProducts = allProducts.map(product => ({
-      id: product.id,
-      title: product.title,
-      handle: product.handle,
-      variants: product.variants?.map(v => ({
-        id: v.id,
-        title: v.title,
-        sku: v.sku || '',
-        price: v.price,
-        inventory_quantity: v.inventory_quantity || 0
-      })) || []
-    }));
-    
-    await storeProducts(formattedProducts);
-    
-    // Update in-memory
-    app.locals.products = formattedProducts;
-    
-    console.log(`Successfully synchronized ${formattedProducts.length} products from Shopify`);
-  } catch (error) {
-    console.error('Initial product sync failed, but continuing app startup:', error.message);
-  }
-})();
-
-// Register webhooks and start server
-(async () => {
-  try {
-    await registerWebhooks();
-  } catch (error) {
-    console.error('Error registering webhooks but continuing app startup:', error);
-  }
-  
-  // Start the server
-  app.listen(port, () => {
-    console.log(`Server running on port ${port}`);
-    console.log(`Public directory serving from: ${publicPath}`);
-    console.log(`Storage mode: ${app.locals.useInMemoryStorage ? 'file-based (LowDB)' : 'mongodb'}`);
-  });
-})();
-
-export default app;
+    res.status​​​​​​​​​​​​​​​​
