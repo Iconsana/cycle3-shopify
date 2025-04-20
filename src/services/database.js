@@ -179,7 +179,7 @@ export const addProductSupplier = async (productSupplier) => {
     const db = await getDB();
     await db.read();
     
-    // Ensure the relationship has an ID
+    // Ensure the productSupplier has an ID
     if (!productSupplier.id) {
       productSupplier.id = Date.now().toString();
     }
@@ -194,7 +194,36 @@ export const addProductSupplier = async (productSupplier) => {
       productSupplier.productId = String(productSupplier.productId);
     }
     
-    console.log(`Adding product-supplier relationship: ProductID=${productSupplier.productId}, SupplierName=${productSupplier.name || productSupplier.supplierName}`);
+    // Check if supplier exists in main suppliers collection
+    const supplierName = productSupplier.supplierName || productSupplier.name;
+    let supplier = db.data.suppliers.find(s => 
+      (s.id === productSupplier.supplierId) || 
+      (s.name === supplierName)
+    );
+    
+    // If not found, add it to suppliers collection
+    if (!supplier && supplierName) {
+      supplier = {
+        id: productSupplier.supplierId || Date.now().toString(),
+        name: supplierName,
+        email: productSupplier.email || `${supplierName.replace(/[^a-z0-9]/gi, '').toLowerCase()}@example.com`,
+        leadTime: productSupplier.leadTime || 3,
+        apiType: 'email',
+        status: 'active',
+        createdAt: new Date().toISOString()
+      };
+      
+      db.data.suppliers.push(supplier);
+      console.log(`Added new supplier: ${supplier.name}`);
+      
+      // Update supplierId in productSupplier
+      productSupplier.supplierId = supplier.id;
+    } else if (supplier) {
+      // Ensure we're using the correct supplierId
+      productSupplier.supplierId = supplier.id;
+    }
+    
+    console.log(`Adding product-supplier relationship: ProductID=${productSupplier.productId}, SupplierName=${supplierName}`);
     
     db.data.productSuppliers.push(productSupplier);
     await db.write();
@@ -207,7 +236,6 @@ export const addProductSupplier = async (productSupplier) => {
     throw error;
   }
 };
-
 /**
  * Get purchase orders
  */
