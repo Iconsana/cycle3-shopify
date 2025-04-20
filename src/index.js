@@ -840,6 +840,64 @@ app.post('/api/purchase-orders/simulate', async (req, res) => {
   }
 });
 
+// Add this endpoint to synchronize existing data
+app.post('/api/sync-data', async (req, res) => {
+  try {
+    const db = await getDB();
+    await db.read();
+    
+    // Get all product suppliers
+    const productSuppliers = db.data.productSuppliers || [];
+    let added = 0;
+    
+    // For each product-supplier, ensure supplier exists
+    for (const ps of productSuppliers) {
+      const supplierName = ps.supplierName || ps.name;
+      if (!supplierName) continue;
+      
+      // Check if supplier exists
+      const existingSupplier = db.data.suppliers.find(s => 
+        s.id === ps.supplierId || s.name === supplierName
+      );
+      
+      // If not, create it
+      if (!existingSupplier) {
+        const newSupplier = {
+          id: ps.supplierId || Date.now().toString() + Math.random().toString(36).substring(2, 7),
+          name: supplierName,
+          email: `${supplierName.replace(/[^a-z0-9]/gi, '').toLowerCase()}@example.com`,
+          leadTime: 3,
+          apiType: 'email',
+          status: 'active',
+          createdAt: new Date().toISOString()
+        };
+        
+        db.data.suppliers.push(newSupplier);
+        
+        // Update supplierId in product-supplier if needed
+        if (!ps.supplierId) {
+          ps.supplierId = newSupplier.id;
+        }
+        
+        added++;
+      }
+    }
+    
+    await db.write();
+    
+    res.json({
+      success: true,
+      message: `Data synchronized. Added ${added} missing suppliers.`
+    });
+  } catch (error) {
+    console.error('Error synchronizing data:', error);
+    res.status(500).json({
+      error: 'Failed to synchronize data',
+      message: error.message
+    });
+  }
+});
+
 // Debug endpoint to view app state
 app.get('/api/debug/app-state', async (req, res) => {
   try {
