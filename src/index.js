@@ -869,3 +869,15 @@ app.get('/api/debug/app-state', async (req, res) => {
     res.status(500).json({ error: 'Error getting debug info', message: error.message });
   }
 });
+
+// At the end of your src/index.js file, replace the existing server startup code with this:
+
+// Start the server
+const PORT = process.env.PORT || 10000;
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+  console.log(`App URL: ${process.env.APP_URL || 'http://localhost:' + PORT}`);
+});
+
+// Export app for testing
+export default app;
