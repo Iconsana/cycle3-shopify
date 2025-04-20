@@ -119,6 +119,16 @@ app.get('/test', (req, res) => {
   res.sendFile(path.join(publicPath, 'test.html'));
 });
 
+// Add or update this endpoint in src/index.js
+app.get('/test-connection', (req, res) => {
+  res.setHeader('Content-Type', 'application/json');
+  res.json({ 
+    status: 'success',
+    message: 'API connection successful',
+    time: new Date().toISOString()
+  });
+});
+
 // Supplier Management UI Route
 app.get('/suppliers', (req, res) => {
   res.sendFile(path.join(publicPath, 'supplier-management.html'));
