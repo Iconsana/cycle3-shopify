@@ -866,4 +866,6 @@ app.get('/api/debug/app-state', async (req, res) => {
     res.json(state);
   } catch (error) {
     console.error('Error getting debug info:', error);
-    res.status​​​​​​​​​​​​​​​​
+    res.status(500).json({ error: 'Error getting debug info', message: error.message });
+  }
+});
