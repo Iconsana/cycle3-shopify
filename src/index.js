@@ -401,37 +401,33 @@ app.post('/api/product-suppliers', async (req, res) => {
   }
 });
 
-// Get a specific product by ID (enhanced with supplier information)
+// API route to get a specific product with suppliers
 app.get('/api/products/:productId/detail', async (req, res) => {
   try {
     const { productId } = req.params;
-    console.log(`GET /api/products/${productId}/detail`);
     
-    const db = await getDB();
-    await db.read();
-    
-    // Find the product in our local database
-    const product = db.data.products.find(p => String(p.id) === String(productId));
+    // Get the product
+    const product = await getProductById(productId);
     
     if (!product) {
-      // If not found locally, try to fetch from Shopify
-      try {
-        const client = new shopify.clients.Rest({
-          session: {
-            shop: process.env.SHOPIFY_SHOP_NAME,
-            accessToken: process.env.SHOPIFY_ACCESS_TOKEN
-          }
-        });
-
-        const response = await client.get({
-          path: `products/${productId}`
-        });
-
-        if (response.body.product) {
-          // Get suppliers for this product
-          const suppliers = db.data.productSuppliers.filter(ps => 
-            String(ps.productId) === String(productId)
-          );
+      return res.status(404).json({ error: 'Product not found' });
+    }
+    
+    // Get suppliers for this product
+    const suppliers = await getProductSuppliers(productId);
+    
+    res.json({
+      product,
+      suppliers
+    });
+  } catch (error) {
+    console.error(`Error fetching product ${req.params.productId}:`, error);
+    res.status(500).json({
+      error: 'Failed to fetch product detail',
+      message: error.message
+    });
+  }
+});
           
           // Return product with suppliers
           return res.json({
