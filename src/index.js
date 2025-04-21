@@ -38,9 +38,6 @@ console.log('Environment Check:', {
   hasMongoUri: !!process.env.MONGODB_URI
 });
 
-// Add webhook routes
-app.use('/webhooks', webhookRoutes);
-
 // Start the server
 app.listen(port, () => {
   console.log(`Multi-Supplier Management app listening on port ${port}`);
@@ -50,6 +47,10 @@ app.listen(port, () => {
     console.error('Failed to register webhooks:', error);
   });
 });
+
+// App setup MUST COME BEFORE using app
+const app = express();
+const port = process.env.PORT || 10000;
 
 // Try to connect to MongoDB, but continue even if it fails
 // This makes MongoDB optional for the MVP testing phase
@@ -71,10 +72,6 @@ if (process.env.MONGODB_URI) {
 
 // Initialize LowDB
 await initDB();
-
-// App setup
-const app = express();
-const port = process.env.PORT || 10000;
 
 // Define paths properly - going up one directory from src to reach public
 const publicPath = path.join(__dirname, '..', 'public');
@@ -156,6 +153,9 @@ const sendFileWithNav = (res, filePath) => {
 
 // Middleware
 app.use(express.json());
+
+// Add webhook routes
+app.use('/webhooks', webhookRoutes);
 
 // Request logging middleware
 app.use((req, res, next) => {
