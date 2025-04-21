@@ -681,5 +681,94 @@
         renderProductSuppliers();
         renderPurchaseOrders();
     </script>
+    // Products Tab functionality
+document.getElementById('syncAllProductsButton')?.addEventListener('click', async function() {
+    try {
+        // Show loading message
+        document.getElementById('allProductsList').innerHTML = '<div class="alert alert-info">Syncing products, please wait...</div>';
+        
+        // Call the API to sync products
+        const response = await fetch('/api/products/sync', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        if (!response.ok) {
+            throw new Error(`Failed to sync products: ${response.status}`);
+        }
+        
+        const result = await response.json();
+        
+        // Fetch the synced products
+        const productsResponse = await fetch('/api/products');
+        const products = await productsResponse.json();
+        
+        if (products.length === 0) {
+            document.getElementById('allProductsList').innerHTML = '<div class="alert alert-info">No products found in your store.</div>';
+            return;
+        }
+        
+        // Display the products
+        let productsHtml = '<div class="row">';
+        products.forEach(product => {
+            productsHtml += `
+                <div class="col-md-4 mb-3">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title">${product.title}</h5>
+                            <p class="card-text">Variants: ${product.variants?.length || 0}</p>
+                            <a href="/product-detail.html?id=${product.id}" class="btn btn-sm btn-primary">Manage Suppliers</a>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+        productsHtml += '</div>';
+        
+        document.getElementById('allProductsList').innerHTML = productsHtml;
+        
+    } catch (error) {
+        console.error('Error syncing products:', error);
+        document.getElementById('allProductsList').innerHTML = `<div class="alert alert-danger">Error: ${error.message}</div>`;
+    }
+});
+
+// Load products when tab is shown
+document.getElementById('all-products-tab')?.addEventListener('shown.bs.tab', async function() {
+    try {
+        const productsResponse = await fetch('/api/products');
+        const products = await productsResponse.json();
+        
+        if (products.length === 0) {
+            document.getElementById('allProductsList').innerHTML = '<div class="alert alert-info">No products synced yet. Click "Sync Products" to get started.</div>';
+            return;
+        }
+        
+        // Display the products
+        let productsHtml = '<div class="row">';
+        products.forEach(product => {
+            productsHtml += `
+                <div class="col-md-4 mb-3">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title">${product.title}</h5>
+                            <p class="card-text">Variants: ${product.variants?.length || 0}</p>
+                            <a href="/product-detail.html?id=${product.id}" class="btn btn-sm btn-primary">Manage Suppliers</a>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+        productsHtml += '</div>';
+        
+        document.getElementById('allProductsList').innerHTML = productsHtml;
+        
+    } catch (error) {
+        console.error('Error loading products:', error);
+        document.getElementById('allProductsList').innerHTML = `<div class="alert alert-danger">Error: ${error.message}</div>`;
+    }
+});
 </body>
 </html>
