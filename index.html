@@ -5,323 +5,57 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Multi-Supplier Management</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        .tab-content {
-            padding: 20px 0;
-        }
-        .tab-pane {
-            animation: fadeIn 0.5s;
-        }
-        @keyframes fadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
-        }
-        .card-title {
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-    </style>
 </head>
 <body class="bg-gray-100">
     <div class="container mx-auto px-4 py-8">
-        <div class="flex items-center justify-between mb-8">
-            <h1 class="text-3xl font-bold">Multi-Supplier Management</h1>
-            <div class="bg-green-100 text-green-800 px-4 py-2 rounded">
-                APP STATUS: ONLINE
+        <h1 class="text-3xl font-bold mb-8">Multi-Supplier Management</h1>
+        <div class="bg-white p-6 rounded-lg shadow-md mb-8">
+            <h2 class="text-xl font-semibold mb-4">App Status</h2>
+            <div id="status" class="p-4 bg-green-100 rounded">
+                Successfully loaded static content! The app is working.
+            </div>
+            
+            <div class="mt-6">
+                <h3 class="font-medium mb-2">Available Pages:</h3>
+                <ul class="space-y-2 list-disc pl-6">
+                    <li><a href="/test" class="text-blue-600 hover:underline">Test Interface</a></li>
+                    <li><a href="/suppliers" class="text-blue-600 hover:underline">Supplier Management</a></li>
+                    <li><a href="/test-connection" class="text-blue-600 hover:underline">Test API Connection</a></li>
+                </ul>
             </div>
         </div>
         
-        <!-- Main Navigation Tabs -->
-        <div class="border-b border-gray-200 mb-8">
-            <ul class="flex flex-wrap -mb-px" id="mainTabs" role="tablist">
-                <li class="mr-2" role="presentation">
-                    <button class="inline-block py-4 px-4 text-gray-500 hover:text-gray-700 font-medium border-b-2 border-transparent hover:border-gray-300" id="home-tab" data-tab="home" type="button" role="tab" aria-controls="home" aria-selected="true">Home</button>
-                </li>
-                <li class="mr-2" role="presentation">
-                    <button class="inline-block py-4 px-4 text-gray-500 hover:text-gray-700 font-medium border-b-2 border-transparent hover:border-gray-300" id="suppliers-tab" data-tab="suppliers" type="button" role="tab" aria-controls="suppliers" aria-selected="false">Suppliers</button>
-                </li>
-                <li class="mr-2" role="presentation">
-                    <button class="inline-block py-4 px-4 text-gray-500 hover:text-gray-700 font-medium border-b-2 border-transparent hover:border-gray-300" id="product-suppliers-tab" data-tab="product-suppliers" type="button" role="tab" aria-controls="product-suppliers" aria-selected="false">Product Suppliers</button>
-                </li>
-                <li class="mr-2" role="presentation">
-                    <button class="inline-block py-4 px-4 text-gray-500 hover:text-gray-700 font-medium border-b-2 border-transparent hover:border-gray-300" id="products-tab" data-tab="products" type="button" role="tab" aria-controls="products" aria-selected="false">Products</button>
-                </li>
-                <li class="mr-2" role="presentation">
-                    <button class="inline-block py-4 px-4 text-gray-500 hover:text-gray-700 font-medium border-b-2 border-transparent hover:border-gray-300" id="orders-tab" data-tab="orders" type="button" role="tab" aria-controls="orders" aria-selected="false">Purchase Orders</button>
-                </li>
-            </ul>
-        </div>
-
-        <!-- Tab Content -->
-        <div class="tab-content">
-            <!-- Home Tab (Default) -->
-            <div class="tab-pane active" id="home">
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-                    <div class="bg-white p-6 rounded-lg shadow-md">
-                        <h2 class="text-xl font-semibold mb-4">Quick Access</h2>
-                        <div class="space-y-4">
-                            <a href="/test" class="block w-full bg-blue-500 text-white text-center py-3 rounded-lg hover:bg-blue-600 transition">
-                                Testing Interface
-                            </a>
-                            <a href="/suppliers" class="block w-full bg-purple-500 text-white text-center py-3 rounded-lg hover:bg-purple-600 transition">
-                                Supplier Management
-                            </a>
-                        </div>
-                    </div>
-                    
-                    <div class="bg-white p-6 rounded-lg shadow-md">
-                        <h2 class="text-xl font-semibold mb-4">API Connection</h2>
-                        <p class="text-gray-600 mb-4">Check if the API is working correctly.</p>
-                        <button id="testConnection" class="w-full bg-gray-800 text-white text-center py-3 rounded-lg hover:bg-gray-900 transition">
-                            Test API Connection
-                        </button>
-                        <div id="connectionResult" class="mt-4 p-4 bg-gray-100 rounded hidden"></div>
-                    </div>
-                </div>
-                
-                <div class="bg-white p-6 rounded-lg shadow-md">
-                    <h2 class="text-xl font-semibold mb-4">About This App</h2>
-                    <p class="text-gray-600 mb-4">
-                        This multi-supplier management app helps Shopify merchants manage multiple suppliers for each product,
-                        set priorities, track stock levels, and automate purchase order generation.
-                    </p>
-                    <div class="border-t pt-4 mt-4">
-                        <h3 class="font-medium mb-2">Key Features:</h3>
-                        <ul class="list-disc pl-5 space-y-1 text-gray-600">
-                            <li>Assign multiple suppliers to each product</li>
-                            <li>Set supplier priorities for automatic fallback</li>
-                            <li>Track stock levels per supplier</li>
-                            <li>Generate purchase orders automatically</li>
-                            <li>Customize email templates for supplier communication</li>
-                        </ul>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Suppliers Tab -->
-            <div class="tab-pane hidden" id="suppliers">
-                <div class="bg-white p-6 rounded-lg shadow-md">
-                    <h2 class="text-xl font-semibold mb-4">Supplier Management</h2>
-                    <div class="text-center py-10">
-                        <p class="text-gray-600 mb-4">Loading supplier management...</p>
-                        <a href="/suppliers" class="inline-block bg-blue-500 text-white px-6 py-2 rounded hover:bg-blue-600">
-                            Go to Supplier Management
-                        </a>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Product Suppliers Tab -->
-            <div class="tab-pane hidden" id="product-suppliers">
-                <div class="bg-white p-6 rounded-lg shadow-md">
-                    <h2 class="text-xl font-semibold mb-4">Product-Supplier Relationships</h2>
-                    <div class="text-center py-10">
-                        <p class="text-gray-600 mb-4">Loading product-supplier management...</p>
-                        <a href="/suppliers" class="inline-block bg-blue-500 text-white px-6 py-2 rounded hover:bg-blue-600">
-                            Go to Product Suppliers
-                        </a>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Products Tab -->
-            <div class="tab-pane hidden" id="products">
-                <div class="bg-white p-6 rounded-lg shadow-md">
-                    <div class="flex justify-between items-center mb-6">
-                        <h2 class="text-xl font-semibold">Your Shopify Products</h2>
-                        <button id="syncProductsBtn" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
-                            Sync Products
-                        </button>
-                    </div>
-                    <div id="productsLoadingIndicator" class="text-center py-4">
-                        <p>Loading products from your store...</p>
-                    </div>
-                    <div id="productsList" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        <!-- Products will be loaded here -->
-                    </div>
-                </div>
-            </div>
-
-            <!-- Orders Tab -->
-            <div class="tab-pane hidden" id="orders">
-                <div class="bg-white p-6 rounded-lg shadow-md">
-                    <h2 class="text-xl font-semibold mb-4">Purchase Orders</h2>
-                    <div class="text-center py-10">
-                        <p class="text-gray-600 mb-4">Loading purchase orders...</p>
-                        <a href="/suppliers" class="inline-block bg-blue-500 text-white px-6 py-2 rounded hover:bg-blue-600">
-                            Go to Purchase Orders
-                        </a>
-                    </div>
-                </div>
+        <div class="bg-white p-6 rounded-lg shadow-md">
+            <h2 class="text-xl font-semibold mb-4">API Status Check</h2>
+            <button id="checkApi" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
+                Check API Status
+            </button>
+            <div id="apiResult" class="mt-4 p-4 bg-gray-100 rounded hidden">
+                Checking API...
             </div>
         </div>
     </div>
 
     <script>
-        // Tab navigation
-        document.querySelectorAll('#mainTabs button').forEach(tab => {
-            tab.addEventListener('click', function(e) {
-                // Hide all tab panes
-                document.querySelectorAll('.tab-pane').forEach(pane => {
-                    pane.classList.add('hidden');
-                    pane.classList.remove('active');
-                });
-                
-                // Remove active state from all tabs
-                document.querySelectorAll('#mainTabs button').forEach(t => {
-                    t.classList.remove('text-blue-600');
-                    t.classList.remove('border-blue-600');
-                    t.classList.add('text-gray-500');
-                    t.classList.add('border-transparent');
-                    t.setAttribute('aria-selected', 'false');
-                });
-                
-                // Activate current tab
-                this.classList.remove('text-gray-500');
-                this.classList.remove('border-transparent');
-                this.classList.add('text-blue-600');
-                this.classList.add('border-blue-600');
-                this.setAttribute('aria-selected', 'true');
-                
-                // Show current tab pane
-                const tabId = this.getAttribute('data-tab');
-                const tabPane = document.getElementById(tabId);
-                tabPane.classList.remove('hidden');
-                tabPane.classList.add('active');
-                
-                // Special handling for products tab
-                if (tabId === 'products') {
-                    loadProducts();
-                }
-            });
-        });
-        
-        // Set Home tab as active by default
-        document.getElementById('home-tab').classList.add('text-blue-600');
-        document.getElementById('home-tab').classList.add('border-blue-600');
-        
         // Test API connection
-        document.getElementById('testConnection').addEventListener('click', async () => {
-            const resultDiv = document.getElementById('connectionResult');
+        document.getElementById('checkApi').addEventListener('click', async () => {
+            const resultDiv = document.getElementById('apiResult');
             resultDiv.classList.remove('hidden');
-            resultDiv.innerText = 'Checking API connection...';
-            resultDiv.className = 'mt-4 p-4 bg-gray-100 rounded';
+            resultDiv.innerText = 'Checking API...';
             
             try {
                 const response = await fetch('/test-connection');
                 const data = await response.json();
                 
-                resultDiv.innerText = `Success! API is connected and working properly.\n\nServer time: ${data.time || 'unknown'}`;
-                resultDiv.className = 'mt-4 p-4 bg-green-100 rounded';
+                resultDiv.innerText = `API Response: ${JSON.stringify(data, null, 2)}`;
+                resultDiv.classList.add('bg-green-100');
+                resultDiv.classList.remove('bg-red-100', 'bg-gray-100');
             } catch (error) {
-                resultDiv.innerText = `Error connecting to API: ${error.message}`;
-                resultDiv.className = 'mt-4 p-4 bg-red-100 rounded';
+                resultDiv.innerText = `Error: ${error.message}`;
+                resultDiv.classList.add('bg-red-100');
+                resultDiv.classList.remove('bg-green-100', 'bg-gray-100');
             }
         });
-        
-        // Products tab functionality
-        async function loadProducts() {
-            const productsList = document.getElementById('productsList');
-            const loadingIndicator = document.getElementById('productsLoadingIndicator');
-            
-            loadingIndicator.style.display = 'block';
-            productsList.innerHTML = '';
-            
-            try {
-                const response = await fetch('/api/products');
-                if (!response.ok) {
-                    throw new Error(`Failed to load products: ${response.status}`);
-                }
-                
-                const products = await response.json();
-                
-                loadingIndicator.style.display = 'none';
-                
-                if (products.length === 0) {
-                    productsList.innerHTML = `
-                        <div class="col-span-3 text-center py-10">
-                            <p class="text-gray-500 mb-3">No products found.</p>
-                            <button id="syncEmptyBtn" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
-                                Sync Products from Shopify
-                            </button>
-                        </div>
-                    `;
-                    document.getElementById('syncEmptyBtn').addEventListener('click', syncProducts);
-                    return;
-                }
-                
-                products.forEach(product => {
-                    const productCard = document.createElement('div');
-                    productCard.className = 'border rounded-lg overflow-hidden hover:shadow-md transition-shadow';
-                    
-                    productCard.innerHTML = `
-                        <div class="p-4">
-                            <h3 class="font-medium truncate" title="${product.title || 'Unnamed Product'}">${product.title || 'Unnamed Product'}</h3>
-                            <p class="text-sm text-gray-500">Variants: ${product.variants?.length || 0}</p>
-                            <div class="flex justify-between items-center mt-2">
-                                <span class="text-xs text-gray-500">ID: ${product.id}</span>
-                                <a href="/suppliers?productId=${product.id}" class="text-xs bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600">
-                                    Manage Suppliers
-                                </a>
-                            </div>
-                        </div>
-                    `;
-                    
-                    productsList.appendChild(productCard);
-                });
-                
-            } catch (error) {
-                console.error('Error loading products:', error);
-                loadingIndicator.style.display = 'none';
-                productsList.innerHTML = `
-                    <div class="col-span-3 text-center py-4">
-                        <p class="text-red-500">Error loading products: ${error.message}</p>
-                    </div>
-                `;
-            }
-        }
-        
-        // Sync products functionality
-        async function syncProducts() {
-            const productsList = document.getElementById('productsList');
-            const loadingIndicator = document.getElementById('productsLoadingIndicator');
-            
-            loadingIndicator.style.display = 'block';
-            loadingIndicator.innerHTML = '<p>Syncing products from Shopify...</p>';
-            productsList.innerHTML = '';
-            
-            try {
-                const response = await fetch('/api/products/sync', {
-                    method: 'POST'
-                });
-                
-                if (!response.ok) {
-                    throw new Error(`Failed to sync products: ${response.status}`);
-                }
-                
-                const result = await response.json();
-                
-                loadingIndicator.innerHTML = `<p class="text-green-500">Successfully synchronized ${result.products?.length || 0} products!</p>`;
-                
-                // Load the products after syncing
-                setTimeout(() => {
-                    loadProducts();
-                }, 1500);
-                
-            } catch (error) {
-                console.error('Error syncing products:', error);
-                loadingIndicator.style.display = 'none';
-                productsList.innerHTML = `
-                    <div class="col-span-3 text-center py-4">
-                        <p class="text-red-500">Error syncing products: ${error.message}</p>
-                    </div>
-                `;
-            }
-        }
-        
-        // Attach event listener to sync button
-        document.getElementById('syncProductsBtn').addEventListener('click', syncProducts);
     </script>
 </body>
 </html>
