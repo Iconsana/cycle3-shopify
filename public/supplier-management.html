@@ -747,22 +747,25 @@
                         return;
                     }
                     
-                    // Display the products in a Bootstrap grid
-                    let productsHtml = '<div class="row">';
-                    products.forEach(product => {
-                        productsHtml += `
-                            <div class="col-md-4 mb-3">
-                                <div class="card">
-                                    <div class="card-body">
-                                        <h5 class="card-title">${product.title || 'Unnamed Product'}</h5>
-                                        <p class="card-text">Variants: ${product.variants?.length || 0}</p>
-                                        <a href="/product-detail.html?id=${product.id}" class="btn btn-sm btn-primary">Manage Suppliers</a>
-                                    </div>
-                                </div>
-                            </div>
-                        `;
-                    });
-                    productsHtml += '</div>';
+                  // Display the products in a Bootstrap grid
+let productsHtml = '<div class="row">';
+products.forEach(product => {
+    productsHtml += `
+        <div class="col-md-4 mb-3">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">${product.title || 'Unnamed Product'}</h5>
+                    <p class="card-text">Variants: ${product.variants?.length || 0}</p>
+                    <p class="text-sm text-gray-500">ID: ${product.id}</p>
+                    <a href="/product-detail.html?id=${product.id}" class="btn btn-sm btn-primary">
+                        Manage Suppliers
+                    </a>
+                </div>
+            </div>
+        </div>
+    `;
+});
+productsHtml += '</div>';
                     
                     productsList.innerHTML = productsHtml;
                     
