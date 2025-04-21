@@ -6,6 +6,8 @@ import webhookRoutes from './routes/webhooks.js';
 import { connectDB } from './database.js';
 import { registerWebhooks } from './services/webhook-registration.js';
 import shopify from '../config/shopify.js';
+import fs from 'fs';
+import path from 'path';
 import { 
   initDB, 
   getDB,
@@ -78,6 +80,17 @@ console.log(`- Suppliers: ${app.locals.suppliers.length}`);
 console.log(`- Product-Supplier relationships: ${app.locals.productSuppliers.length}`);
 console.log(`- Purchase Orders: ${app.locals.purchaseOrders.length}`);
 console.log(`- Products: ${app.locals.products?.length || 0}`);
+
+// Helper function to inject navigation into HTML responses
+const injectNavigation = (html) => {
+  try {
+    const navHtml = fs.readFileSync(path.join(publicPath, 'components/nav.html'), 'utf8');
+    return html.replace('<body>', '<body>' + navHtml);
+  } catch (error) {
+    console.error('Error injecting navigation:', error);
+    return html;
+  }
+};
 
 // Middleware
 app.use(express.json());
