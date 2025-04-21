@@ -13,7 +13,7 @@
         .stock-badge { margin-left: 10px; }
     </style>
 </head>
-
+<body>
     <div class="container mt-4">
         <h1>Multi-Supplier Management</h1>
         
@@ -28,8 +28,8 @@
                 <button class="nav-link" id="orders-tab" data-bs-toggle="tab" data-bs-target="#orders" type="button" role="tab" aria-controls="orders" aria-selected="false">Purchase Orders</button>
             </li>
             <li class="nav-item" role="presentation">
-        <button class="nav-link" id="all-products-tab" data-bs-toggle="tab" data-bs-target="#all-products" type="button" role="tab" aria-controls="all-products" aria-selected="false">Products</button>
-    </li>
+                <button class="nav-link" id="all-products-tab" data-bs-toggle="tab" data-bs-target="#all-products" type="button" role="tab" aria-controls="all-products" aria-selected="false">Products</button>
+            </li>
         </ul>
         
         <div class="tab-content" id="myTabContent">
@@ -148,17 +148,18 @@
                     <div class="alert alert-info">No purchase orders generated yet.</div>
                 </div>
             </div>
+            
             <!-- Products Tab -->
-<div class="tab-pane fade" id="all-products" role="tabpanel" aria-labelledby="all-products-tab">
-    <div class="d-flex justify-content-between align-items-center mb-3">
-        <h3>Your Shopify Products</h3>
-        <button id="syncAllProductsButton" class="btn btn-success">Sync Products</button>
-    </div>
-    <div id="allProductsList">
-        <!-- Products will be listed here dynamically -->
-        <div class="alert alert-info">No products synced yet. Click "Sync Products" to get started.</div>
-    </div>
-</div>
+            <div class="tab-pane fade" id="all-products" role="tabpanel" aria-labelledby="all-products-tab">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h3>Your Shopify Products</h3>
+                    <button id="syncAllProductsButton" class="btn btn-success">Sync Products</button>
+                </div>
+                <div id="allProductsList">
+                    <!-- Products will be listed here dynamically -->
+                    <div class="alert alert-info">No products synced yet. Click "Sync Products" to get started.</div>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -675,100 +676,112 @@
             });
         }
         
+        // Products Tab functionality
+        document.addEventListener('DOMContentLoaded', function() {
+            // Get button element
+            const syncButton = document.getElementById('syncAllProductsButton');
+            if (syncButton) {
+                syncButton.addEventListener('click', syncProducts);
+            }
+            
+            // Add listener for tab activation
+            const allProductsTab = document.getElementById('all-products-tab');
+            if (allProductsTab) {
+                allProductsTab.addEventListener('shown.bs.tab', loadProducts);
+            }
+            
+            // Sync products function
+            async function syncProducts() {
+                try {
+                    // Show loading message
+                    const productsList = document.getElementById('allProductsList');
+                    if (!productsList) return;
+                    
+                    productsList.innerHTML = '<div class="alert alert-info">Syncing products, please wait...</div>';
+                    
+                    // Call the API to sync products
+                    const response = await fetch('/api/products/sync', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        }
+                    });
+                    
+                    if (!response.ok) {
+                        throw new Error(`Failed to sync products: ${response.status}`);
+                    }
+                    
+                    const result = await response.json();
+                    console.log('Sync result:', result);
+                    
+                    // After syncing, load the products
+                    loadProducts();
+                    
+                } catch (error) {
+                    console.error('Error syncing products:', error);
+                    const productsList = document.getElementById('allProductsList');
+                    if (productsList) {
+                        productsList.innerHTML = `<div class="alert alert-danger">Error: ${error.message}</div>`;
+                    }
+                }
+            }
+            
+            // Load products function
+            async function loadProducts() {
+                try {
+                    const productsList = document.getElementById('allProductsList');
+                    if (!productsList) return;
+                    
+                    productsList.innerHTML = '<div class="alert alert-info">Loading products...</div>';
+                    
+                    const response = await fetch('/api/products');
+                    if (!response.ok) {
+                        throw new Error(`Failed to load products: ${response.status}`);
+                    }
+                    
+                    const products = await response.json();
+                    console.log(`Loaded ${products.length} products`);
+                    
+                    if (products.length === 0) {
+                        productsList.innerHTML = '<div class="alert alert-info">No products found. Click "Sync Products" to fetch from your Shopify store.</div>';
+                        return;
+                    }
+                    
+                    // Display the products in a Bootstrap grid
+                    let productsHtml = '<div class="row">';
+                    products.forEach(product => {
+                        productsHtml += `
+                            <div class="col-md-4 mb-3">
+                                <div class="card">
+                                    <div class="card-body">
+                                        <h5 class="card-title">${product.title || 'Unnamed Product'}</h5>
+                                        <p class="card-text">Variants: ${product.variants?.length || 0}</p>
+                                        <a href="/product-detail.html?id=${product.id}" class="btn btn-sm btn-primary">Manage Suppliers</a>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    });
+                    productsHtml += '</div>';
+                    
+                    productsList.innerHTML = productsHtml;
+                    
+                } catch (error) {
+                    console.error('Error loading products:', error);
+                    const productsList = document.getElementById('allProductsList');
+                    if (productsList) {
+                        productsList.innerHTML = `<div class="alert alert-danger">Error: ${error.message}</div>`;
+                    }
+                }
+            }
+        });
+        
         // Initialize the UI
         renderSuppliers();
         updateSupplierDropdown();
         renderProductSuppliers();
         renderPurchaseOrders();
     </script>
-    // Products Tab functionality
-document.getElementById('syncAllProductsButton')?.addEventListener('click', async function() {
-    try {
-        // Show loading message
-        document.getElementById('allProductsList').innerHTML = '<div class="alert alert-info">Syncing products, please wait...</div>';
-        
-        // Call the API to sync products
-        const response = await fetch('/api/products/sync', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            }
-        });
-        
-        if (!response.ok) {
-            throw new Error(`Failed to sync products: ${response.status}`);
-        }
-        
-        const result = await response.json();
-        
-        // Fetch the synced products
-        const productsResponse = await fetch('/api/products');
-        const products = await productsResponse.json();
-        
-        if (products.length === 0) {
-            document.getElementById('allProductsList').innerHTML = '<div class="alert alert-info">No products found in your store.</div>';
-            return;
-        }
-        
-        // Display the products
-        let productsHtml = '<div class="row">';
-        products.forEach(product => {
-            productsHtml += `
-                <div class="col-md-4 mb-3">
-                    <div class="card">
-                        <div class="card-body">
-                            <h5 class="card-title">${product.title}</h5>
-                            <p class="card-text">Variants: ${product.variants?.length || 0}</p>
-                            <a href="/product-detail.html?id=${product.id}" class="btn btn-sm btn-primary">Manage Suppliers</a>
-                        </div>
-                    </div>
-                </div>
-            `;
-        });
-        productsHtml += '</div>';
-        
-        document.getElementById('allProductsList').innerHTML = productsHtml;
-        
-    } catch (error) {
-        console.error('Error syncing products:', error);
-        document.getElementById('allProductsList').innerHTML = `<div class="alert alert-danger">Error: ${error.message}</div>`;
-    }
-});
-
-// Load products when tab is shown
-document.getElementById('all-products-tab')?.addEventListener('shown.bs.tab', async function() {
-    try {
-        const productsResponse = await fetch('/api/products');
-        const products = await productsResponse.json();
-        
-        if (products.length === 0) {
-            document.getElementById('allProductsList').innerHTML = '<div class="alert alert-info">No products synced yet. Click "Sync Products" to get started.</div>';
-            return;
-        }
-        
-        // Display the products
-        let productsHtml = '<div class="row">';
-        products.forEach(product => {
-            productsHtml += `
-                <div class="col-md-4 mb-3">
-                    <div class="card">
-                        <div class="card-body">
-                            <h5 class="card-title">${product.title}</h5>
-                            <p class="card-text">Variants: ${product.variants?.length || 0}</p>
-                            <a href="/product-detail.html?id=${product.id}" class="btn btn-sm btn-primary">Manage Suppliers</a>
-                        </div>
-                    </div>
-                </div>
-            `;
-        });
-        productsHtml += '</div>';
-        
-        document.getElementById('allProductsList').innerHTML = productsHtml;
-        
-    } catch (error) {
-        console.error('Error loading products:', error);
-        document.getElementById('allProductsList').innerHTML = `<div class="alert alert-danger">Error: ${error.message}</div>`;
-    }
-});
 </body>
 </html>
+                    
