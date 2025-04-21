@@ -38,6 +38,19 @@ console.log('Environment Check:', {
   hasMongoUri: !!process.env.MONGODB_URI
 });
 
+// Add webhook routes
+app.use('/webhooks', webhookRoutes);
+
+// Start the server
+app.listen(port, () => {
+  console.log(`Multi-Supplier Management app listening on port ${port}`);
+  
+  // Try to register webhooks
+  registerWebhooks().catch(error => {
+    console.error('Failed to register webhooks:', error);
+  });
+});
+
 // Try to connect to MongoDB, but continue even if it fails
 // This makes MongoDB optional for the MVP testing phase
 let dbConnection = null;
@@ -830,4 +843,85 @@ app.post('/api/purchase-orders/simulate', async (req, res) => {
     const pos = [];
     order.items.forEach(item => {
       const suppliers = productSuppliers[item.productId] || [];
-      suppliers.sort((
+      suppliers.sort((a, b) => a.priority - b.priority); // Sort by priority
+      
+      if (suppliers.length === 0) {
+        console.log(`No suppliers found for product ${item.productId}`);
+        return;
+      }
+      
+      // Find supplier with enough stock
+      let selectedSupplier = suppliers.find(s => s.stockLevel >= item.quantity);
+      
+      // If no supplier has enough stock, use the highest priority one
+      if (!selectedSupplier) {
+        selectedSupplier = suppliers[0];
+        console.log(`No supplier has enough stock for product ${item.productId}, using highest priority supplier`);
+      }
+      
+      // Check if there's already a PO for this supplier
+      let po = pos.find(po => po.supplierId === selectedSupplier.supplierId);
+      
+      if (!po) {
+        // Create new PO
+        po = {
+          poNumber: `PO-${Date.now()}-${selectedSupplier.supplierId.substring(0, 4)}`,
+          supplierId: selectedSupplier.supplierId,
+          supplierName: selectedSupplier.supplierName || selectedSupplier.name,
+          status: 'pending_approval',
+          items: [],
+          createdAt: new Date().toISOString()
+        };
+        pos.push(po);
+      }
+      
+      // Add item to PO
+      po.items.push({
+        productId: item.productId,
+        productName: item.name || item.productId,
+        quantity: item.quantity,
+        price: selectedSupplier.price,
+        stockLevel: selectedSupplier.stockLevel
+      });
+      
+      // Update stock level for the supplier
+      selectedSupplier.stockLevel = Math.max(0, selectedSupplier.stockLevel - item.quantity);
+    });
+    
+    // Save POs to database and update product suppliers
+    if (pos.length > 0) {
+      const db = await getDB();
+      await db.read();
+      
+      // Add POs to database
+      db.data.purchaseOrders = [...db.data.purchaseOrders, ...pos];
+      
+      // Update suppliers stock levels
+      for (const supplier of Object.values(productSuppliers).flat()) {
+        const index = db.data.productSuppliers.findIndex(ps => ps.id === supplier.id);
+        if (index !== -1) {
+          db.data.productSuppliers[index].stockLevel = supplier.stockLevel;
+          db.data.productSuppliers[index].updatedAt = new Date().toISOString();
+        }
+      }
+      
+      await db.write();
+      
+      // Update app.locals
+      app.locals.purchaseOrders = db.data.purchaseOrders;
+      app.locals.productSuppliers = db.data.productSuppliers;
+    }
+    
+    res.json({
+      success: true,
+      orderId: order.id,
+      purchaseOrders: pos
+    });
+  } catch (error) {
+    console.error('Error simulating order:', error);
+    res.status(500).json({ 
+      error: 'Error simulating order', 
+      message: error.message 
+    });
+  }
+});
