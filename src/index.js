@@ -156,15 +156,9 @@ const injectNavigation = (html) => {
   }
 };
 
-// Helper function to send file with navigation
+// Helper function to send file (without navigation injection)
 const sendFileWithNav = (res, filePath) => {
-  try {
-    const html = fs.readFileSync(filePath, 'utf8');
-    res.send(injectNavigation(html));
-  } catch (error) {
-    console.error('Error serving file with navigation:', error);
-    res.sendFile(filePath); // Fallback to regular sendFile
-  }
+  res.sendFile(filePath);
 };
 
 // Basic health check endpoint
