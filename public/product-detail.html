@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Product Detail</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100">
+    <div class="container mx-auto px-4 py-8">
+        <div class="flex justify-between items-center mb-8">
+            <h1 id="productTitle" class="text-2xl font-bold">Product Detail</h1>
+            <div class="flex space-x-4">
+                <a href="/products" class="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600">
+                    Back to Products
+                </a>
+                <a href="/" class="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600">
+                    Home
+                </a>
+            </div>
+        </div>
+        
+        <!-- Status Messages -->
+        <div id="statusMessage" class="hidden mb-4"></div>
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <!-- Product Information -->
+            <div class="bg-white rounded-lg shadow-md p-6">
+                <h2 class="text-xl font-semibold mb-4">Product Information</h2>
+                <div id="productInfo" class="space-y-3">
+                    <div class="animate-pulse space-y-3">
+                        <div class="h-4 bg-gray-200 rounded w-3/4"></div>
+                        <div class="h-4 bg-gray-200 rounded"></div>
+                        <div class="h-4 bg-gray-200 rounded w-5/6"></div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Supplier Management -->
+            <div class="bg-white rounded-lg shadow-md p-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-xl font-semibold">Suppliers</h2>
+                    <button id="addSupplierBtn" class="bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600">
+                        Add Supplier
+                    </button>
+                </div>
+                <div id="suppliersList" class="space-y-4">
+                    <div class="animate-pulse space-y-3">
+                        <div class="h-16 bg-gray-200 rounded w-full"></div>
+                        <div class="h-16 bg-gray-200 rounded w-full"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Add Supplier Form (Hidden by default) -->
+        <div id="addSupplierForm" class="mt-8 bg-white rounded-lg shadow-md p-6 hidden">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-semibold">Add Supplier</h2>
+                <button id="closeFormBtn" class="text-gray-500 hover:text-gray-700">
+                    ✕ Close
+                </button>
+            </div>
+            
+            <form id="supplierForm" class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium mb-1" for="supplierSelect">
+                        Select Existing Supplier
+                    </label>
+                    <select id="supplierSelect" class="w-full p-2 border rounded">
+                        <option value="">-- Create new supplier --</option>
+                    </select>
+                </div>
+                
+                <div id="newSupplierFields">
+                    <div>
+                        <label class="block text-sm font-medium mb-1" for="supplierName">
+                            Supplier Name
+                        </label>
+                        <input type="text" id="supplierName" class="w-full p-2 border rounded" required>
+                    </div>
+                    
+                    <div class="mt-4">
+                        <label class="block text-sm font-medium mb-1" for="supplierEmail">
+                            Email
+                        </label>
+                        <input type="email" id="supplierEmail" class="w-full p-2 border rounded" required>
+                    </div>
+                    
+                    <div class="mt-4">
+                        <label class="block text-sm font-medium mb-1" for="leadTime">
+                            Lead Time (days)
+                        </label>
+                        <input type="number" id="leadTime" class="w-full p-2 border rounded" value="3" min="1">
+                    </div>
+                </div>
+                
+                <div class="border-t pt-4 mt-4">
+                    <h3 class="font-medium mb-2">Product-Supplier Relationship</h3>
+                    
+                    <div>
+                        <label class="block text-sm font-medium mb-1" for="priority">
+                            Priority (lower number = higher priority)
+                        </label>
+                        <input type="number" id="priority" class="w-full p-2 border rounded" min="1" value="1" required>
+                    </div>
+                    
+                    <div class="mt-4">
+                        <label class="block text-sm font-medium mb-1" for="price">
+                            Price
+                        </label>
+                        <input type="number" id="price" class="w-full p-2 border rounded" step="0.01" min="0" required>
+                    </div>
+                    
+                    <div class="mt-4">
+                        <label class="block text-sm font-medium mb-1" for="stockLevel">
+                            Stock Level
+                        </label>
+                        <input type="number" id="stockLevel" class="w-full p-2 border rounded" min="0" value="0">
+                    </div>
+                </div>
+                
+                <button type="submit" class="w-full bg-blue-500 text-white py-2 rounded hover:bg-blue-600">
+                    Add Supplier
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // Global state
+        const state = {
+            product: null,
+            productId: null,
+            suppliers: [],
+            allSuppliers: []
+        };
+        
+        // Cache DOM elements
+        const elements = {
+            productTitle: document.getElementById('productTitle'),
+            productInfo: document.getElementById('productInfo'),
+            suppliersList: document.getElementById('suppliersList'),
+            addSupplierBtn: document.getElementById('addSupplierBtn'),
+            addSupplierForm: document.getElementById('addSupplierForm'),
+            closeFormBtn: document.getElementById('closeFormBtn'),
+            supplierForm: document.getElementById('supplierForm'),
+            supplierSelect: document.getElementById('supplierSelect'),
+            newSupplierFields: document.getElementById('newSupplierFields'),
+            statusMessage: document.getElementById('statusMessage')
+        };
+        
+        // Helper functions
+        function showMessage(message, type = 'info') {
+            const statusEl = elements.statusMessage;
+            statusEl.textContent = message;
+            statusEl.className = `mb-4 p-4 rounded ${type === 'error' ? 'bg-red-100 text-red-800' : type === 'success' ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'}`;
+            statusEl.classList.remove('hidden');
+            
+            // Auto-hide after 5 seconds
+            setTimeout(() => {
+                statusEl.classList.add('hidden');
+            }, 5000);
+        }
+        
+        // Get product ID from URL
+        function getProductIdFromUrl() {
+            const urlParams = new URLSearchParams(window.location.search);
+            return urlParams.get('id');
+        }
+        
+        // Load product details
+        async function loadProductDetails() {
+            try {
+                const productId = getProductIdFromUrl();
+                
+                if (!productId) {
+                    showMessage('No product ID specified', 'error');
+                    return;
+                }
+                
+                state.productId = productId;
+                
+                // Show loading state
+                elements.productInfo.innerHTML = `
+                    <div class="animate-pulse space-y-3">
+                        <div class="h-4 bg-gray-200 rounded w-3/4"></div>
+                        <div class="h-4 bg-gray-200 rounded"></div>
+                        <div class="h-4 bg-gray-200 rounded w-5/6"></div>
+                    </div>
+                `;
+                
+                // Fetch product details
+                const response = await fetch(`/api/products/${productId}/detail`);
+                
+                if (!response.ok) {
+                    throw new Error(`Failed to load product: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                state.product = data.product;
+                state.suppliers = data.suppliers || [];
+                
+                // Update UI
+                updateProductInfo();
+                updateSuppliersList();
+                
+                // Load all suppliers for the dropdown
+                await loadAllSuppliers();
+                
+            } catch (error) {
+                console.error('Error loading product details:', error);
+                showMessage(`Error: ${error.message}`, 'error');
+            }
+        }
+        
+        // Update product information display
+        function updateProductInfo() {
+            const product = state.product;
+            
+            if (!product) {
+                elements.productInfo.innerHTML = '<p class="text-red-500">Product not found</p>';
+                return;
+            }
+            
+            elements.productTitle.textContent = product.title || 'Product Details';
+            
+            let html = `
+                <p><strong>ID:</strong> ${product.id}</p>
+                ${product.handle ? `<p><strong>Handle:</strong> ${product.handle}</p>` : ''}
+            `;
+            
+            // Add variants info if available
+            if (product.variants && product.variants.length > 0) {
+                html += `<p><strong>Variants:</strong> ${product.variants.length}</p>`;
+                
+                // Add details for first variant
+                const firstVariant = product.variants[0];
+                html += `
+                    <div class="mt-4">
+                        <h3 class="font-medium">First Variant</h3>
+                        <p class="ml-4">SKU: ${firstVariant.sku || 'N/A'}</p>
+                        <p class="ml-4">Price: $${parseFloat(firstVariant.price).toFixed(2)}</p>
+                        <p class="ml-4">Inventory: ${firstVariant.inventory_quantity || 0}</p>
+                    </div>
+                `;
+            }
+            
+            elements.productInfo.innerHTML = html;
+        }
+        
+        // Update suppliers list display
+        function updateSuppliersList() {
+            const suppliers = state.suppliers;
+            
+            if (!suppliers || suppliers.length === 0) {
+                elements.suppliersList.innerHTML = '<p class="text-gray-500">No suppliers assigned yet</p>';
+                return;
+            }
+            
+            // Sort suppliers by priority
+            const sortedSuppliers = [...suppliers].sort((a, b) => a.priority - b.priority);
+            
+            elements.suppliersList.innerHTML = sortedSuppliers.map((supplier, index) => `
+                <div class="border rounded p-4 ${index === 0 ? 'bg-green-50 border-green-200' : ''}">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <h3 class="font-medium">${supplier.supplierName || supplier.name}</h3>
+                            <p class="text-sm text-gray-500">Priority: ${supplier.priority}</p>
+                            <p class="text-sm">Price: $${supplier.price.toFixed(2)}</p>
+                            <p class="text-sm">Stock: ${supplier.stockLevel}</p>
+                        </div>
+                        <div class="flex flex-col space-y-2">
+                            <button class="text-xs bg-yellow-500 text-white px-2 py-1 rounded hover:bg-yellow-600 update-stock-btn" 
+                                    data-id="${supplier.id}">
+                                Update Stock
+                            </button>
+                            <button class="text-xs bg-red-500 text-white px-2 py-1 rounded hover:bg-red-600 remove-supplier-btn" 
+                                    data-id="${supplier.id}">
+                                Remove
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+            
+            // Add event listeners for buttons
+            document.querySelectorAll('.update-stock-btn').forEach(btn => {
+                btn.addEventListener('click', handleUpdateStock);
+            });
+            
+            document.querySelectorAll('.remove-supplier-btn').forEach(btn => {
+                btn.addEventListener('click', handleRemoveSupplier);
+            });
+        }
+        
+        // Load all suppliers for the dropdown
+        async function loadAllSuppliers() {
+            try {
+                const response = await fetch('/api/suppliers');
+                
+                if (!response.ok) {
+                    throw new Error(`Failed to load suppliers: ${response.status}`);
+                }
+                
+                state.allSuppliers = await response.json();
+                
+                // Update supplier dropdown
+                updateSupplierDropdown();
+            } catch (error) {
+                console.error('Error loading suppliers:', error);
+                showMessage(`Error loading suppliers: ${error.message}`, 'error');
+            }
+        }
+        
+        // Update supplier dropdown
+        function updateSupplierDropdown() {
+            // Clear existing options except first one
+            while (elements.supplierSelect.options.length > 1) {
+                elements.supplierSelect.remove(1);
+            }
+            
+            // Add options for each supplier
+            state.allSuppliers.forEach(supplier => {
+                const option = document.createElement('option');
+                option.value = supplier.id;
+                option.textContent = supplier.name;
+                elements.supplierSelect.appendChild(option);
+            });
+        }
+        
+        // Handle update stock button click
+        function handleUpdateStock(e) {
+            const supplierId = e.target.getAttribute('data-id');
+            const supplier = state.suppliers.find(s => s.id === supplierId);
+            
+            if (!supplier) return;
+            
+            const newStock = prompt(`Update stock level for ${supplier.supplierName || supplier.name}:`, supplier.stockLevel);
+            
+            if (newStock === null) return; // User cancelled
+            
+            const stockLevel = parseInt(newStock);
+            if (isNaN(stockLevel)) {
+                showMessage('Please enter a valid number', 'error');
+                return;
+            }
+            
+            updateSupplierStock(supplierId, stockLevel);
+        }
+        
+        // Handle remove supplier button click
+        function handleRemoveSupplier(e) {
+            const supplierId = e.target.getAttribute('data-id');
+            const supplier = state.suppliers.find(s => s.id === supplierId);
+            
+            if (!supplier) return;
+            
+            if (confirm(`Are you sure you want to remove ${supplier.supplierName || supplier.name} from this product?`)) {
+                removeSupplier(supplierId);
+            }
+        }
+        
+        // Update supplier stock level
+        async function updateSupplierStock(supplierId, stockLevel) {
+            try {
+                const response = await fetch(`/api/products/${state.productId}/suppliers/${supplierId}`, {
+                    method: 'PATCH',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ stockLevel })
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`Failed to update stock: ${response.status}`);
+                }
+                
+                // Update local state
+                const supplier = state.suppliers.find(s => s.id === supplierId);
+                if (supplier) {
+                    supplier.stockLevel = stockLevel;
+                }
+                
+                // Update UI
+                updateSuppliersList();
+                
+                showMessage('Stock level updated successfully', 'success');
+            } catch (error) {
+                console.error('Error updating stock:', error);
+                showMessage(`Error updating stock: ${error.message}`, 'error');
+            }
+        }
+        
+        // Remove supplier from product
+        async function removeSupplier(supplierId) {
+            try {
+                const response = await fetch(`/api/products/${state.productId}/suppliers/${supplierId}`, {
+                    method: 'DELETE'
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`Failed to remove supplier: ${response.status}`);
+                }
+                
+                // Remove from local state
+                state.suppliers = state.suppliers.filter(s => s.id !== supplierId);
+                
+                // Update UI
+                updateSuppliersList();
+                
+                showMessage('Supplier removed successfully', 'success');
+            } catch (error) {
+                console.error('Error removing supplier:', error);
+                showMessage(`Error removing supplier: ${error.message}`, 'error');
+            }
+        }
+        
+        // Event Listeners
+        elements.addSupplierBtn.addEventListener('click', () => {
+            elements.addSupplierForm.classList.remove('hidden');
+        });
+        
+        elements.closeFormBtn.addEventListener('click', () => {
+            elements.addSupplierForm.classList.add('hidden');
+        });
+        
+        elements.supplierSelect.addEventListener('change', () => {
+            const selectedValue = elements.supplierSelect.value;
+            
+            // Show/hide new supplier fields based on selection
+            if (selectedValue) {
+                elements.newSupplierFields.classList.add('hidden');
+                
+                // Pre-fill price with variant price if available
+                if (state.product && state.product.variants && state.product.variants.length > 0) {
+                    document.getElementById('price').value = state.product.variants[0].price || '';
+                }
+            } else {
+                elements.newSupplierFields.classList.remove('hidden');
+            }
+        });
+        
+        elements.supplierForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const selectedSupplierId = elements.supplierSelect.value;
+            const supplierName = document.getElementById('supplierName').value;
+            const supplierEmail = document.getElementById('supplierEmail').value;
+            const leadTime = document.getElementById('leadTime').value;
+            const priority = document.getElementById('priority').value;
+            const price = document.getElementById('price').value;
+            const stockLevel = document.getElementById('stockLevel').value;
+            
+            // Prepare data based on whether creating new or using existing supplier
+            let supplierData;
+            
+            if (selectedSupplierId) {
+                // Using existing supplier
+                supplierData = {
+                    supplierId: selectedSupplierId,
+                    priority: parseInt(priority),
+                    price: parseFloat(price),
+                    stockLevel: parseInt(stockLevel)
+                };
+            } else {
+                // Creating new supplier
+                supplierData = {
+                    name: supplierName,
+                    email: supplierEmail,
+                    leadTime: parseInt(leadTime),
+                    priority: parseInt(priority),
+                    price: parseFloat(price),
+                    stockLevel: parseInt(stockLevel)
+                };
+            }
+            
+            try {
+                const response = await fetch(`/api/products/${state.productId}/suppliers`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(supplierData)
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`Failed to add supplier: ${response.status}`);
+                }
+                
+                const newRelationship = await response.json();
+                
+                // Add to local state if not already there
+                if (!state.suppliers.some(s => s.id === newRelationship.id)) {
+                    state.suppliers.push(newRelationship);
+                }
+                
+                // Update UI
+                updateSuppliersList();
+                
+                // Hide form and reset it
+                elements.addSupplierForm.classList.add('hidden');
+                elements.supplierForm.reset();
+                document.getElementById('priority').value = '1';
+                document.getElementById('stockLevel').value = '0';
+                document.getElementById('leadTime').value = '3';
+                elements.newSupplierFields.classList.remove('hidden');
+                
+                showMessage('Supplier added successfully', 'success');
+                
+                // Refresh all suppliers
+                await loadAllSuppliers();
+            } catch (error) {
+                console.error('Error adding supplier:', error);
+                showMessage(`Error adding supplier: ${error.message}`, 'error');
+            }
+        });
+        
+        // Initialize
+        window.addEventListener('DOMContentLoaded', loadProductDetails);
+    </script>
+</body>
+</html>
