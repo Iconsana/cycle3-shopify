@@ -7,7 +7,6 @@ import { connectDB } from './database.js';
 import { registerWebhooks } from './services/webhook-registration.js';
 import shopify from '../config/shopify.js';
 import fs from 'fs';
-import path from 'path';
 import { 
   initDB, 
   getDB,
@@ -81,14 +80,64 @@ console.log(`- Product-Supplier relationships: ${app.locals.productSuppliers.len
 console.log(`- Purchase Orders: ${app.locals.purchaseOrders.length}`);
 console.log(`- Products: ${app.locals.products?.length || 0}`);
 
+// Create the components directory if it doesn't exist
+const componentsDir = path.join(publicPath, 'components');
+if (!fs.existsSync(componentsDir)) {
+  try {
+    fs.mkdirSync(componentsDir, { recursive: true });
+  } catch (err) {
+    console.error('Error creating components directory:', err);
+  }
+}
+
+// Create the navigation HTML file if it doesn't exist
+const navFilePath = path.join(componentsDir, 'nav.html');
+if (!fs.existsSync(navFilePath)) {
+  try {
+    const navContent = `<!-- shared navigation bar -->
+<div class="bg-white shadow-sm mb-6">
+  <div class="container mx-auto px-4">
+    <div class="flex items-center justify-between py-4">
+      <h1 class="text-xl font-bold">Multi-Supplier Management</h1>
+      <div class="bg-green-100 text-green-800 px-2 py-1 text-sm rounded">
+        ONLINE
+      </div>
+    </div>
+    <div class="flex border-b pb-1">
+      <a href="/" class="px-4 py-2 font-medium hover:text-blue-500 border-b-2 border-transparent hover:border-blue-500 transition">Home</a>
+      <a href="/suppliers" class="px-4 py-2 font-medium hover:text-blue-500 border-b-2 border-transparent hover:border-blue-500 transition">Suppliers</a>
+      <a href="/suppliers?tab=product-suppliers" class="px-4 py-2 font-medium hover:text-blue-500 border-b-2 border-transparent hover:border-blue-500 transition">Product Suppliers</a>
+      <a href="/products" class="px-4 py-2 font-medium hover:text-blue-500 border-b-2 border-transparent hover:border-blue-500 transition">Products</a>
+      <a href="/suppliers?tab=purchase-orders" class="px-4 py-2 font-medium hover:text-blue-500 border-b-2 border-transparent hover:border-blue-500 transition">Purchase Orders</a>
+    </div>
+  </div>
+</div>`;
+    fs.writeFileSync(navFilePath, navContent);
+    console.log('Created navigation component file');
+  } catch (err) {
+    console.error('Error creating navigation file:', err);
+  }
+}
+
 // Helper function to inject navigation into HTML responses
 const injectNavigation = (html) => {
   try {
     const navHtml = fs.readFileSync(path.join(publicPath, 'components/nav.html'), 'utf8');
-    return html.replace('<body>', '<body>' + navHtml);
+    return html.replace('<body', '<body>' + navHtml + '<body').replace('<body><body', '<body');
   } catch (error) {
     console.error('Error injecting navigation:', error);
     return html;
+  }
+};
+
+// Helper function to send file with navigation
+const sendFileWithNav = (res, filePath) => {
+  try {
+    const html = fs.readFileSync(filePath, 'utf8');
+    res.send(injectNavigation(html));
+  } catch (error) {
+    console.error('Error serving file with navigation:', error);
+    res.sendFile(filePath); // Fallback to regular sendFile
   }
 };
 
@@ -117,7 +166,7 @@ app.get('/health', (req, res) => {
 // Root route - serve index.html or API status based on content type
 app.get('/', (req, res) => {
   if (req.accepts('html')) {
-    res.sendFile(path.join(publicPath, 'index.html'));
+    sendFileWithNav(res, path.join(publicPath, 'index.html'));
   } else {
     res.status(200).json({ 
       status: 'healthy',
@@ -129,10 +178,10 @@ app.get('/', (req, res) => {
 
 // Special route for test page
 app.get('/test', (req, res) => {
-  res.sendFile(path.join(publicPath, 'test.html'));
+  sendFileWithNav(res, path.join(publicPath, 'test.html'));
 });
 
-// Add or update this endpoint in src/index.js
+// Test connection endpoint
 app.get('/test-connection', (req, res) => {
   res.setHeader('Content-Type', 'application/json');
   res.json({ 
@@ -144,17 +193,17 @@ app.get('/test-connection', (req, res) => {
 
 // Supplier Management UI Route
 app.get('/suppliers', (req, res) => {
-  res.sendFile(path.join(publicPath, 'supplier-management.html'));
+  sendFileWithNav(res, path.join(publicPath, 'supplier-management.html'));
 });
 
 // Product Management UI Route
 app.get('/products', (req, res) => {
-  res.sendFile(path.join(publicPath, 'product-management.html'));
+  sendFileWithNav(res, path.join(publicPath, 'product-management.html'));
 });
 
 // Product Detail UI Route
 app.get('/product-detail', (req, res) => {
-  res.sendFile(path.join(publicPath, 'product-detail.html'));
+  sendFileWithNav(res, path.join(publicPath, 'product-detail.html'));
 });
 
 // API Routes for Suppliers
@@ -781,184 +830,4 @@ app.post('/api/purchase-orders/simulate', async (req, res) => {
     const pos = [];
     order.items.forEach(item => {
       const suppliers = productSuppliers[item.productId] || [];
-      suppliers.sort((a, b) => a.priority - b.priority);
-      
-      // Find first supplier with stock
-      let selectedSupplier = null;
-      for (const supplier of suppliers) {
-        if (supplier.stockLevel >= item.quantity) {
-          selectedSupplier = supplier;
-          break;
-        }
-      }
-      
-      // Fallback to highest priority if none has enough stock
-      if (!selectedSupplier && suppliers.length > 0) {
-        selectedSupplier = suppliers[0];
-      }
-      
-      if (selectedSupplier) {
-        // Create or update PO
-        let po = pos.find(p => p.supplierId === selectedSupplier.supplierId);
-        if (!po) {
-          po = {
-            poNumber: 'PO-' + Date.now() + '-' + selectedSupplier.supplierId.substring(0, 4),
-            supplierId: selectedSupplier.supplierId,
-            supplierName: selectedSupplier.supplierName,
-            items: [],
-            status: 'pending',
-            createdAt: new Date().toISOString()
-          };
-          pos.push(po);
-        }
-        
-        // Add item to PO
-        po.items.push({
-          productId: item.productId,
-          productName: item.productName,
-          quantity: item.quantity,
-          price: selectedSupplier.price
-        });
-        
-        // Update stock (for simulation)
-        const newStockLevel = Math.max(0, selectedSupplier.stockLevel - item.quantity);
-        updateProductSupplierStock(selectedSupplier.id, newStockLevel);
-        
-        // Update in-memory object too
-        selectedSupplier.stockLevel = newStockLevel;
-      }
-    });
-    
-    // Add POs to storage
-    if (pos.length > 0) {
-      await addPurchaseOrders(pos);
-    }
-    
-    // Update in-memory data
-    app.locals.productSuppliers = await getProductSuppliers();
-    app.locals.purchaseOrders = await getPurchaseOrders();
-    
-    console.log(`Generated ${pos.length} purchase orders`);
-    
-    res.status(201).json({
-      orderId: order.id,
-      purchaseOrders: pos
-    });
-  } catch (error) {
-    console.error('Error simulating order:', error);
-    res.status(500).json({
-      error: 'Failed to simulate order',
-      message: error.message
-    });
-  }
-});
-
-// Add this endpoint to synchronize existing data
-app.post('/api/sync-data', async (req, res) => {
-  try {
-    const db = await getDB();
-    await db.read();
-    
-    // Get all product suppliers
-    const productSuppliers = db.data.productSuppliers || [];
-    let added = 0;
-    
-    // For each product-supplier, ensure supplier exists
-    for (const ps of productSuppliers) {
-      const supplierName = ps.supplierName || ps.name;
-      if (!supplierName) continue;
-      
-      // Check if supplier exists
-      const existingSupplier = db.data.suppliers.find(s => 
-        s.id === ps.supplierId || s.name === supplierName
-      );
-      
-      // If not, create it
-      if (!existingSupplier) {
-        const newSupplier = {
-          id: ps.supplierId || Date.now().toString() + Math.random().toString(36).substring(2, 7),
-          name: supplierName,
-          email: `${supplierName.replace(/[^a-z0-9]/gi, '').toLowerCase()}@example.com`,
-          leadTime: 3,
-          apiType: 'email',
-          status: 'active',
-          createdAt: new Date().toISOString()
-        };
-        
-        db.data.suppliers.push(newSupplier);
-        
-        // Update supplierId in product-supplier if needed
-        if (!ps.supplierId) {
-          ps.supplierId = newSupplier.id;
-        }
-        
-        added++;
-      }
-    }
-    
-    await db.write();
-    
-    res.json({
-      success: true,
-      message: `Data synchronized. Added ${added} missing suppliers.`
-    });
-  } catch (error) {
-    console.error('Error synchronizing data:', error);
-    res.status(500).json({
-      error: 'Failed to synchronize data',
-      message: error.message
-    });
-  }
-});
-
-// Debug endpoint to view app state
-app.get('/api/debug/app-state', async (req, res) => {
-  try {
-    const suppliers = await getSuppliers();
-    const productSuppliers = await getProductSuppliers();
-    const purchaseOrders = await getPurchaseOrders();
-    const products = await getProducts();
-    
-    const state = {
-      suppliers: {
-        count: suppliers.length,
-        data: suppliers
-      },
-      productSuppliers: {
-        count: productSuppliers.length,
-        uniqueProductIds: [...new Set(productSuppliers.map(ps => ps.productId))],
-        data: productSuppliers
-      },
-      purchaseOrders: {
-        count: purchaseOrders.length
-      },
-      products: {
-        count: products?.length || 0
-      },
-      storageMode: app.locals.useInMemoryStorage ? 'file-based' : 'mongodb',
-      dbInfo: {
-        type: 'LowDB',
-        location: process.env.NODE_ENV === 'production' 
-          ? '/tmp/cycle3-shopify-db-v2.json'
-          : path.join(__dirname, '..', 'data', 'cycle3-shopify-db.json')
-      }
-    };
-    
-    res.json(state);
-  } catch (error) {
-    console.error('Error getting debug info:', error);
-    res.status(500).json({ error: 'Error getting debug info', message: error.message });
-  }
-});
-
-// At the end of your src/index.js file, replace the existing server startup code with this:
-
-// Start the server
-const PORT = process.env.PORT || 10000;
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-  console.log(`App URL: ${process.env.APP_URL || 'http://localhost:' + PORT}`);
-});
-
-// Export app for testing
-export default app;
+      suppliers.sort((
