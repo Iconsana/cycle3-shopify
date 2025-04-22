@@ -410,12 +410,14 @@ app.get('/api/products/:productId/detail', async (req, res) => {
     const product = await getProductById(productId);
     
     if (!product) {
-      return res.status(404).json({ error: 'Product not found' });
+      res.status(404).json({ error: 'Product not found' });
+      return; // Use return after res.json instead of return res.json
     }
     
     // Get suppliers for this product
     const suppliers = await getProductSuppliers(productId);
     
+    // Send the response
     res.json({
       product,
       suppliers
