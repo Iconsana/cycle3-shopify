@@ -410,36 +410,7 @@ app.get('/api/products/:productId/detail', async (req, res) => {
     const product = await getProductById(productId);
     
     if (!product) {
-      res.status(404).json({ error: 'Product not found' });
-      return; // Use return after res.json instead of return res.json
-    }
-    
-    // Get suppliers for this product
-    const suppliers = await getProductSuppliers(productId);
-    
-    // Send the response
-    res.json({
-      product,
-      suppliers
-    });
-  } catch (error) {
-    console.error(`Error fetching product ${req.params.productId}:`, error);
-    res.status(500).json({
-      error: 'Failed to fetch product detail',
-      message: error.message
-    });
-  }
-});// API route to get a specific product with suppliers
-app.get('/api/products/:productId/detail', async (req, res) => {
-  try {
-    const { productId } = req.params;
-    
-    // Get the product
-    const product = await getProductById(productId);
-    
-    if (!product) {
-      res.status(404).json({ error: 'Product not found' });
-      return; // Use return after res.json instead of return res.json
+      return res.status(404).json({ error: 'Product not found' });
     }
     
     // Get suppliers for this product
@@ -458,13 +429,7 @@ app.get('/api/products/:productId/detail', async (req, res) => {
     });
   }
 });
-          
-          // Return product with suppliers
-          return res.json({
-            product: response.body.product,
-            suppliers: suppliers
-          });
-        }
+
 // API routes for specific product's suppliers
 app.get('/api/products/:productId/suppliers', async (req, res) => {
   try {
