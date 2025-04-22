@@ -180,6 +180,7 @@
                 }
                 
                 state.productId = productId;
+                console.log('Loading product details for ID:', productId);
                 
                 // Show loading state
                 elements.productInfo.innerHTML = `
@@ -200,6 +201,9 @@
                 const data = await response.json();
                 state.product = data.product;
                 state.suppliers = data.suppliers || [];
+                
+                console.log('Product data loaded:', state.product);
+                console.log('Suppliers loaded:', state.suppliers);
                 
                 // Update UI
                 updateProductInfo();
@@ -304,6 +308,7 @@
                 }
                 
                 state.allSuppliers = await response.json();
+                console.log('All suppliers loaded:', state.allSuppliers);
                 
                 // Update supplier dropdown
                 updateSupplierDropdown();
@@ -443,6 +448,7 @@
         
         elements.supplierForm.addEventListener('submit', async (e) => {
             e.preventDefault();
+            console.log('Submitting supplier form for product ID:', state.productId);
             
             const selectedSupplierId = elements.supplierSelect.value;
             const supplierName = document.getElementById('supplierName').value;
@@ -463,6 +469,7 @@
                     price: parseFloat(price),
                     stockLevel: parseInt(stockLevel)
                 };
+                console.log('Using existing supplier with ID:', selectedSupplierId);
             } else {
                 // Creating new supplier
                 supplierData = {
@@ -473,7 +480,10 @@
                     price: parseFloat(price),
                     stockLevel: parseInt(stockLevel)
                 };
+                console.log('Creating new supplier:', supplierName);
             }
+            
+            console.log('Supplier data to send:', supplierData);
             
             try {
                 const response = await fetch(`/api/products/${state.productId}/suppliers`, {
@@ -484,11 +494,14 @@
                     body: JSON.stringify(supplierData)
                 });
                 
+                console.log('Response status:', response.status);
+                
                 if (!response.ok) {
                     throw new Error(`Failed to add supplier: ${response.status}`);
                 }
                 
                 const newRelationship = await response.json();
+                console.log('Response data:', newRelationship);
                 
                 // Add to local state if not already there
                 if (!state.suppliers.some(s => s.id === newRelationship.id)) {
@@ -518,6 +531,3 @@
         
         // Initialize
         window.addEventListener('DOMContentLoaded', loadProductDetails);
-    </script>
-</body>
-</html>
