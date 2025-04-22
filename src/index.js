@@ -429,6 +429,34 @@ app.get('/api/products/:productId/detail', async (req, res) => {
       message: error.message
     });
   }
+});// API route to get a specific product with suppliers
+app.get('/api/products/:productId/detail', async (req, res) => {
+  try {
+    const { productId } = req.params;
+    
+    // Get the product
+    const product = await getProductById(productId);
+    
+    if (!product) {
+      res.status(404).json({ error: 'Product not found' });
+      return; // Use return after res.json instead of return res.json
+    }
+    
+    // Get suppliers for this product
+    const suppliers = await getProductSuppliers(productId);
+    
+    // Send the response
+    res.json({
+      product,
+      suppliers
+    });
+  } catch (error) {
+    console.error(`Error fetching product ${req.params.productId}:`, error);
+    res.status(500).json({
+      error: 'Failed to fetch product detail',
+      message: error.message
+    });
+  }
 });
           
           // Return product with suppliers
@@ -437,46 +465,6 @@ app.get('/api/products/:productId/detail', async (req, res) => {
             suppliers: suppliers
           });
         }
-      } catch (shopifyError) {
-        console.error(`Error fetching product from Shopify:`, shopifyError);
-      }
-      
-      return res.status(404).json({ error: 'Product not found' });
-    }
-    
-    // Get suppliers for this product
-    const suppliers = db.data.productSuppliers.filter(ps => 
-      String(ps.productId) === String(productId)
-    );
-    
-    // Enrich suppliers with full supplier details if available
-    const enrichedSuppliers = await Promise.all(suppliers.map(async (ps) => {
-      if (ps.supplierId) {
-        const supplier = db.data.suppliers.find(s => s.id === ps.supplierId);
-        if (supplier) {
-          return {
-            ...ps,
-            supplierName: supplier.name,
-            leadTime: supplier.leadTime
-          };
-        }
-      }
-      return ps;
-    }));
-    
-    res.json({
-      product,
-      suppliers: enrichedSuppliers
-    });
-  } catch (error) {
-    console.error(`Error fetching product detail ${req.params.productId}:`, error);
-    res.status(500).json({
-      error: 'Failed to fetch product detail',
-      message: error.message
-    });
-  }
-});
-
 // API routes for specific product's suppliers
 app.get('/api/products/:productId/suppliers', async (req, res) => {
   try {
