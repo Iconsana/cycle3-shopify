@@ -401,20 +401,26 @@ app.post('/api/product-suppliers', async (req, res) => {
   }
 });
 
-// API route to get a specific product with suppliers
+// Modified API route to get a specific product with suppliers
 app.get('/api/products/:productId/detail', async (req, res) => {
   try {
     const { productId } = req.params;
+    console.log(`GET /api/products/${productId}/detail`);
+    
+    // FIX: Ensure consistent string comparison for product IDs
+    const stringProductId = String(productId);
     
     // Get the product
-    const product = await getProductById(productId);
+    const product = await getProductById(stringProductId);
     
     if (!product) {
       return res.status(404).json({ error: 'Product not found' });
     }
     
     // Get suppliers for this product
-    const suppliers = await getProductSuppliers(productId);
+    const suppliers = await getProductSuppliers(stringProductId);
+    
+    console.log(`Found ${suppliers.length} suppliers for product ${stringProductId}`);
     
     // Send the response
     res.json({
@@ -429,6 +435,22 @@ app.get('/api/products/:productId/detail', async (req, res) => {
     });
   }
 });
+
+// Modified getProductById function
+export const getProductById = async (productId) => {
+  try {
+    const db = await getDB();
+    await db.read();
+    
+    // FIX: Ensure consistent string comparison
+    const stringProductId = String(productId);
+    
+    return db.data.products.find(p => String(p.id) === stringProductId) || null;
+  } catch (error) {
+    console.error(`Error getting product ${productId}:`, error);
+    return null;
+  }
+};
 
 // API routes for specific product's suppliers
 app.get('/api/products/:productId/suppliers', async (req, res) => {
@@ -452,7 +474,7 @@ app.get('/api/products/:productId/suppliers', async (req, res) => {
   }
 });
 
-// Add a supplier to a product with proper two-way connection
+// Modified API route for adding suppliers to products
 app.post('/api/products/:productId/suppliers', async (req, res) => {
   try {
     const { productId } = req.params;
@@ -462,9 +484,12 @@ app.post('/api/products/:productId/suppliers', async (req, res) => {
     const db = await getDB();
     await db.read();
     
+    // FIX: Ensure consistent string comparison for product IDs
+    const stringProductId = String(productId);
+    
     // Validate if product exists
-    const product = db.data.products.find(p => String(p.id) === String(productId));
-    if (!product && !productId.includes('gid://')) {
+    const product = db.data.products.find(p => String(p.id) === stringProductId);
+    if (!product && !stringProductId.includes('gid://')) {
       // Only validate if not using a Shopify GID
       return res.status(404).json({ error: 'Product not found' });
     }
@@ -500,12 +525,15 @@ app.post('/api/products/:productId/suppliers', async (req, res) => {
         
         db.data.suppliers.push(newSupplier);
         supplierId = newSupplier.id;
+        
+        console.log(`Created new supplier: ${newSupplier.name} with ID: ${supplierId}`);
       }
     }
 
+    // FIX: Ensure consistent string comparison for checking existing relationships
     // Check if this relationship already exists
     const existingRelationship = db.data.productSuppliers.find(ps => 
-      String(ps.productId) === String(productId) && 
+      String(ps.productId) === stringProductId && 
       (ps.supplierId === supplierId || ps.name === supplierName)
     );
     
@@ -515,6 +543,8 @@ app.post('/api/products/:productId/suppliers', async (req, res) => {
       existingRelationship.price = parseFloat(supplierData.price) || existingRelationship.price;
       existingRelationship.stockLevel = parseInt(supplierData.stockLevel) || existingRelationship.stockLevel;
       existingRelationship.updatedAt = new Date().toISOString();
+      
+      console.log(`Updated existing relationship: ${existingRelationship.id}`);
       
       await db.write();
       return res.json({
@@ -526,7 +556,7 @@ app.post('/api/products/:productId/suppliers', async (req, res) => {
     // Create new product-supplier relationship
     const newRelationship = {
       id: Date.now().toString(),
-      productId: String(productId),
+      productId: stringProductId,
       supplierId: supplierId,
       name: supplierName, // Keep name for backward compatibility
       supplierName: supplierName,
@@ -543,6 +573,8 @@ app.post('/api/products/:productId/suppliers', async (req, res) => {
       newRelationship.productName = supplierData.productName;
     }
 
+    console.log(`Creating new relationship with ID: ${newRelationship.id} for product: ${stringProductId} and supplier: ${supplierName}`);
+    
     // Save to database
     db.data.productSuppliers.push(newRelationship);
     await db.write();
