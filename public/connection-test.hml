@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Supplier Integration Test</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100">
+    <div class="container mx-auto px-4 py-8 max-w-4xl">
+        <h1 class="text-2xl font-bold mb-8">Multi-Supplier Connection Test</h1>
+
+        <div class="bg-white rounded-lg shadow-md p-6 mb-8">
+            <h2 class="text-xl font-semibold mb-4">Test Cross-Page Integration</h2>
+            <p class="mb-4">This page helps diagnose connection issues between the Product Detail page and Supplier Management pages.</p>
+            
+            <div class="mb-6">
+                <button id="testProductSuppliers" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 mr-2">
+                    Test Product-Supplier Connection
+                </button>
+                <button id="clearData" class="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600">
+                    Clear Test Data
+                </button>
+            </div>
+            
+            <div id="testResult" class="mt-4 p-4 bg-gray-100 rounded hidden overflow-auto max-h-96">
+                Test results will appear here...
+            </div>
+        </div>
+        
+        <div class="bg-white rounded-lg shadow-md p-6 mb-8">
+            <h2 class="text-xl font-semibold mb-4">Create Test Supplier</h2>
+            
+            <form id="testSupplierForm" class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium mb-1">Supplier Name</label>
+                    <input type="text" id="supplierName" value="Test Supplier" class="w-full p-2 border rounded">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1">Email</label>
+                    <input type="email" id="supplierEmail" value="test@example.com" class="w-full p-2 border rounded">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1">Lead Time (days)</label>
+                    <input type="number" id="leadTime" value="3" class="w-full p-2 border rounded">
+                </div>
+                <button type="submit" class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600">
+                    Create Supplier
+                </button>
+            </form>
+            
+            <div id="supplierResult" class="mt-4 p-4 bg-gray-100 rounded hidden">
+                Result will appear here...
+            </div>
+        </div>
+        
+        <div class="flex justify-between mt-8">
+            <a href="/" class="text-blue-500 hover:underline">Back to Home</a>
+            <a href="/product-detail.html?id=9733845057853" class="text-blue-500 hover:underline">View Example Product</a>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const testBtn = document.getElementById('testProductSuppliers');
+            const clearBtn = document.getElementById('clearData');
+            const resultDiv = document.getElementById('testResult');
+            const supplierForm = document.getElementById('testSupplierForm');
+            const supplierResultDiv = document.getElementById('supplierResult');
+            
+            testBtn.addEventListener('click', async function() {
+                resultDiv.innerHTML = 'Running test...';
+                resultDiv.classList.remove('hidden');
+                
+                try {
+                    // Get database state
+                    const stateResponse = await fetch('/api/debug/app-state');
+                    const state = await stateResponse.json();
+                    
+                    // Create test results
+                    let html = `<h3 class="font-bold mb-2">Current Database State:</h3>
+                        <ul class="list-disc ml-5 mb-4">
+                            <li>Suppliers: ${state.suppliers.count}</li>
+                            <li>Product-Supplier Relationships: ${state.productSuppliers.count}</li>
+                            <li>Products: ${state.products.count}</li>
+                        </ul>`;
+                    
+                    // Get product IDs with supplier relationships
+                    if (state.productSuppliers.uniqueProductIds.length > 0) {
+                        html += `<h3 class="font-bold mb-2">Products with Suppliers:</h3>
+                            <ul class="list-disc ml-5 mb-4">`;
+                        
+                        for (const productId of state.productSuppliers.uniqueProductIds) {
+                            html += `<li>Product ID: ${productId} 
+                                <a href="/product-detail.html?id=${productId}" class="text-blue-500 hover:underline">View</a>
+                            </li>`;
+                        }
+                        
+                        html += `</ul>`;
+                    }
+                    
+                    resultDiv.innerHTML = html;
+                } catch (error) {
+                    resultDiv.innerHTML = `<div class="text-red-600">Error: ${error.message}</div>`;
+                }
+            });
+            
+            clearBtn.addEventListener('click', async function() {
+                if (confirm('This will delete all test suppliers and relationships. Continue?')) {
+                    resultDiv.innerHTML = 'Clearing test data...';
+                    resultDiv.classList.remove('hidden');
+                    
+                    try {
+                        // Just a placeholder - clearing functionality would require a custom API endpoint
+                        resultDiv.innerHTML = '<div class="text-yellow-600">Clear functionality not implemented yet.</div>';
+                    } catch (error) {
+                        resultDiv.innerHTML = `<div class="text-red-600">Error: ${error.message}</div>`;
+                    }
+                }
+            });
+            
+            supplierForm.addEventListener('submit', async function(e) {
+                e.preventDefault();
+                
+                const supplierData = {
+                    name: document.getElementById('supplierName').value,
+                    email: document.getElementById('supplierEmail').value,
+                    leadTime: parseInt(document.getElementById('leadTime').value),
+                    apiType: 'email'
+                };
+                
+                try {
+                    const response = await fetch('/api/suppliers', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(supplierData)
+                    });
+                    
+                    if (!response.ok) {
+                        throw new Error(`Failed with status: ${response.status}`);
+                    }
+                    
+                    const result = await response.json();
+                    
+                    // Show success message with supplier ID
+                    document.getElementById('supplierResult').innerHTML = `
+                        <div class="p-4 bg-green-100 rounded">
+                            Supplier created successfully! ID: ${result.id}<br>
+                            You can now assign this supplier to products.
+                        </div>
+                    `;
+                    document.getElementById('supplierResult').classList.remove('hidden');
+                } catch (error) {
+                    document.getElementById('supplierResult').innerHTML = `
+                        <div class="p-4 bg-red-100 rounded">
+                            Error creating supplier: ${error.message}
+                        </div>
+                    `;
+                    document.getElementById('supplierResult').classList.remove('hidden');
+                }
+            });
+        });
+    </script>
+</body>
+</html>
