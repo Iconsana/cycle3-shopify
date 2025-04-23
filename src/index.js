@@ -904,6 +904,131 @@ app.post('/api/purchase-orders/simulate', async (req, res) => {
   }
 });
 
+// Add this route to src/index.js to get all product-supplier relationships
+app.get('/api/product-suppliers', async (req, res) => {
+  try {
+    const { productId } = req.query;
+    
+    const db = await getDB();
+    await db.read();
+    
+    let relationships = db.data.productSuppliers || [];
+    
+    // Filter by product ID if provided
+    if (productId) {
+      // Ensure string comparison
+      const stringProductId = String(productId);
+      relationships = relationships.filter(ps => String(ps.productId) === stringProductId);
+      console.log(`Filtered to ${relationships.length} relationships for product ${stringProductId}`);
+    }
+    
+    // Enrich with product and supplier names if needed
+    const enrichedRelationships = relationships.map(rel => {
+      // If missing product name, try to find it
+      if (!rel.productName) {
+        const product = db.data.products.find(p => String(p.id) === String(rel.productId));
+        if (product) {
+          rel.productName = product.title;
+        }
+      }
+      
+      // If missing supplier name, try to find it
+      if (!rel.supplierName && rel.supplierId) {
+        const supplier = db.data.suppliers.find(s => s.id === rel.supplierId);
+        if (supplier) {
+          rel.supplierName = supplier.name;
+        }
+      }
+      
+      return rel;
+    });
+    
+    console.log(`GET /api/product-suppliers - returning: ${enrichedRelationships.length} relationships`);
+    res.json(enrichedRelationships);
+  } catch (error) {
+    console.error('Error fetching product-supplier relationships:', error);
+    res.status(500).json({ 
+      error: 'Error fetching product-supplier relationships', 
+      message: error.message 
+    });
+  }
+});
+
+// Add this route to handle getting products for a specific supplier
+app.get('/api/suppliers/:supplierId/products', async (req, res) => {
+  try {
+    const { supplierId } = req.params;
+    console.log(`GET /api/suppliers/${supplierId}/products`);
+    
+    const db = await getDB();
+    await db.read();
+    
+    // Find all relationships for this supplier
+    const relationships = db.data.productSuppliers.filter(ps => ps.supplierId === supplierId);
+    console.log(`Found ${relationships.length} relationships for supplier ${supplierId}`);
+    
+    // Enrich with product details
+    const enrichedRelationships = relationships.map(rel => {
+      // Try to find product in products array
+      if (!rel.productName) {
+        const product = db.data.products.find(p => String(p.id) === String(rel.productId));
+        if (product) {
+          rel.productName = product.title;
+        }
+      }
+      return rel;
+    });
+    
+    res.json(enrichedRelationships);
+  } catch (error) {
+    console.error(`Error fetching products for supplier ${req.params.supplierId}:`, error);
+    res.status(500).json({ 
+      error: 'Error fetching supplier products', 
+      message: error.message 
+    });
+  }
+});
+
+// Add a debug route to get the application state
+app.get('/api/debug/app-state', async (req, res) => {
+  try {
+    const db = await getDB();
+    await db.read();
+    
+    // Create a summary of the app state
+    const state = {
+      suppliers: {
+        count: db.data.suppliers.length,
+        samples: db.data.suppliers.slice(0, 3) // Just show a few samples
+      },
+      productSuppliers: {
+        count: db.data.productSuppliers.length,
+        uniqueProductIds: [...new Set(db.data.productSuppliers.map(ps => ps.productId))],
+        uniqueSupplierIds: [...new Set(db.data.productSuppliers.map(ps => ps.supplierId))],
+        samples: db.data.productSuppliers.slice(0, 3) // Just show a few samples
+      },
+      products: {
+        count: db.data.products.length,
+        samples: db.data.products.slice(0, 2).map(p => ({
+          id: p.id,
+          title: p.title
+        }))
+      },
+      storage: app.locals.useInMemoryStorage ? 'file-based' : 'mongodb',
+      serverTime: new Date().toISOString()
+    };
+    
+    console.log(`GET /api/debug/app-state - Returning app state summary`);
+    res.json(state);
+  } catch (error) {
+    console.error('Error getting app state:', error);
+    res.status(500).json({ 
+      error: 'Error getting app state', 
+      message: error.message 
+    });
+  }
+});
+
 // Start the server
 app.listen(port, () => {
   console.log(`Multi-Supplier Management app listening on port ${port}`);
