@@ -13,8 +13,7 @@ export const getProductSuppliers = async (productId = null) => {
     
     if (productId) {
       // FIX: Convert both sides to strings for comparison
-      return db.data.productSuppliers.filter(ps => String(ps.productId) === String(productId)) || [];
-    }
+return db.data.productSuppliers.filter(ps => String(ps.productId) === String(productId)) || [];    }
     return db.data.productSuppliers || [];
   } catch (error) {
     console.error('Error getting product suppliers:', error);
