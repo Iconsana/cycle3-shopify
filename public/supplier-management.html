@@ -223,86 +223,265 @@
 </script>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-    <script>
-        // In-memory storage
-        const suppliers = [];
-        const productSuppliers = [];
-        const purchaseOrders = [];
+    <script>// Modify this section in public/supplier-management.html to properly load product-supplier relationships
+
+// Add this to the top of the script section
+document.addEventListener('DOMContentLoaded', async () => {
+    // Initialize tabs
+    const tabLinks = document.querySelectorAll('.nav-item button');
+    tabLinks.forEach(tab => {
+        tab.addEventListener('click', function() {
+            // Get the tab target
+            const target = this.getAttribute('data-bs-target');
+            
+            // Update active state for tabs
+            tabLinks.forEach(t => {
+                t.classList.remove('active');
+                const tabContent = document.querySelector(t.getAttribute('data-bs-target'));
+                if (tabContent) tabContent.classList.remove('show', 'active');
+            });
+            
+            this.classList.add('active');
+            const activeTab = document.querySelector(target);
+            if (activeTab) activeTab.classList.add('show', 'active');
+            
+            // Load data based on active tab
+            if (target === '#products') {
+                loadProductSupplierRelationships();
+            } else if (target === '#suppliers') {
+                loadSuppliers();
+            } else if (target === '#all-products') {
+                loadAllProducts();
+            }
+        });
+    });
+    
+    // Load initial data
+    await loadSuppliers();
+    await loadProductSupplierRelationships();
+    
+    // Set up event listeners for forms
+    setupEventListeners();
+});
+
+// Replace the loadProductSuppliers function with this improved version
+async function loadProductSupplierRelationships() {
+    try {
+        const productSuppliersListElement = document.getElementById('productSuppliersList');
+        if (!productSuppliersListElement) return;
         
-        // Supplier form submission
-        document.getElementById('supplierForm').addEventListener('submit', function(e) {
-            e.preventDefault();
-            
-            const supplier = {
-                id: Date.now().toString(),
-                name: document.getElementById('supplierName').value,
-                email: document.getElementById('supplierEmail').value,
-                leadTime: parseInt(document.getElementById('leadTime').value),
-                apiType: document.getElementById('apiType').value,
-                status: 'active',
-                createdAt: new Date().toISOString()
-            };
-            
-            suppliers.push(supplier);
-            renderSuppliers();
-            updateSupplierDropdown();
-            this.reset();
+        productSuppliersListElement.innerHTML = '<div class="alert alert-info">Loading product-supplier relationships...</div>';
+        
+        // Get the filter value if any
+        const filterValue = document.getElementById('productFilter')?.value || '';
+        
+        // Fetch all product-supplier relationships
+        const response = await fetch('/api/product-suppliers' + (filterValue ? `?productId=${filterValue}` : ''));
+        
+        if (!response.ok) {
+            throw new Error(`Failed to load product suppliers: ${response.status}`);
+        }
+        
+        const relationships = await response.json();
+        console.log(`Loaded ${relationships.length} product-supplier relationships`);
+        
+        if (relationships.length === 0) {
+            productSuppliersListElement.innerHTML = '<div class="alert alert-info">No product-supplier relationships found.</div>';
+            return;
+        }
+        
+        // Group by product ID
+        const groupedByProduct = {};
+        relationships.forEach(rel => {
+            if (!groupedByProduct[rel.productId]) {
+                groupedByProduct[rel.productId] = [];
+            }
+            groupedByProduct[rel.productId].push(rel);
         });
         
-        // Product Supplier form submission
-        document.getElementById('productSupplierForm').addEventListener('submit', function(e) {
-            e.preventDefault();
+        let html = '';
+        
+        // For each product, create a card
+        Object.entries(groupedByProduct).forEach(([productId, relations]) => {
+            // Sort suppliers by priority
+            relations.sort((a, b) => a.priority - b.priority);
             
-            const productSupplier = {
-                id: Date.now().toString(),
-                productId: document.getElementById('productId').value,
-                productName: document.getElementById('productName').value || document.getElementById('productId').value,
-                supplierId: document.getElementById('supplierId').value,
-                supplierName: suppliers.find(s => s.id === document.getElementById('supplierId').value)?.name || 'Unknown',
-                priority: parseInt(document.getElementById('priority').value),
-                price: parseFloat(document.getElementById('price').value),
-                stockLevel: parseInt(document.getElementById('stockLevel').value),
-                lastUpdated: new Date().toISOString()
-            };
+            const productName = relations[0].productName || productId;
             
-            productSuppliers.push(productSupplier);
-            renderProductSuppliers();
-            this.reset();
-            document.getElementById('priority').value = '1';
-            document.getElementById('stockLevel').value = '0';
-        });
-        
-        // Filter product suppliers
-        document.getElementById('filterButton').addEventListener('click', function() {
-            renderProductSuppliers(document.getElementById('productFilter').value);
-        });
-        
-        // Clear filter
-        document.getElementById('clearFilterButton').addEventListener('click', function() {
-            document.getElementById('productFilter').value = '';
-            renderProductSuppliers();
-        });
-        
-        // Simulate new order
-        document.getElementById('simulateOrderButton').addEventListener('click', function() {
-            simulateNewOrder();
-        });
-        
-        // Render suppliers list
-        function renderSuppliers() {
-            const suppliersList = document.getElementById('suppliersList');
+            html += `
+                <div class="card mb-4">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">Product: ${productName}</h5>
+                        <span class="badge bg-secondary">ID: ${productId}</span>
+                    </div>
+                    <div class="list-group list-group-flush">`;
             
-            if (suppliers.length === 0) {
-                suppliersList.innerHTML = '<div class="alert alert-info">No suppliers added yet.</div>';
-                return;
+            relations.forEach((relation, index) => {
+                const priorityClass = relation.priority <= 3 
+                    ? 'bg-success' 
+                    : relation.priority <= 7 
+                        ? 'bg-warning' 
+                        : 'bg-danger';
+                
+                html += `
+                    <div class="list-group-item ${index === 0 ? 'bg-light' : ''}">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <h6 class="mb-0">${relation.supplierName || relation.name}</h6>
+                            <div>
+                                <span class="badge ${priorityClass}">Priority: ${relation.priority}</span>
+                                <span class="badge ${relation.stockLevel > 0 ? 'bg-success' : 'bg-danger'}">
+                                    Stock: ${relation.stockLevel}
+                                </span>
+                            </div>
+                        </div>
+                        <p class="mb-1">Price: $${parseFloat(relation.price).toFixed(2)}</p>
+                        <div class="d-flex justify-content-end mt-2">
+                            <button class="btn btn-sm btn-outline-primary me-2 update-stock-btn" 
+                                    data-id="${relation.id}" 
+                                    data-product-id="${productId}">
+                                Update Stock
+                            </button>
+                            <button class="btn btn-sm btn-outline-danger remove-relationship-btn" 
+                                    data-id="${relation.id}" 
+                                    data-product-id="${productId}">
+                                Remove
+                            </button>
+                        </div>
+                    </div>`;
+            });
+            
+            html += `
+                    </div>
+                </div>`;
+        });
+        
+        productSuppliersListElement.innerHTML = html;
+        
+        // Add event listeners for action buttons
+        document.querySelectorAll('.update-stock-btn').forEach(btn => {
+            btn.addEventListener('click', handleUpdateStock);
+        });
+        
+        document.querySelectorAll('.remove-relationship-btn').forEach(btn => {
+            btn.addEventListener('click', handleRemoveRelationship);
+        });
+        
+    } catch (error) {
+        console.error('Error loading product-supplier relationships:', error);
+        const productSuppliersListElement = document.getElementById('productSuppliersList');
+        if (productSuppliersListElement) {
+            productSuppliersListElement.innerHTML = `<div class="alert alert-danger">Error: ${error.message}</div>`;
+        }
+    }
+}
+
+// Add these helper functions
+async function handleUpdateStock(e) {
+    const relationshipId = e.target.getAttribute('data-id');
+    const productId = e.target.getAttribute('data-product-id');
+    
+    const newStock = prompt('Enter new stock level:');
+    if (newStock === null) return; // User cancelled
+    
+    const stockLevel = parseInt(newStock);
+    if (isNaN(stockLevel) || stockLevel < 0) {
+        alert('Please enter a valid positive number');
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/products/${productId}/suppliers/${relationshipId}`, {
+            method: 'PATCH',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ stockLevel })
+        });
+        
+        if (!response.ok) {
+            throw new Error(`Failed to update stock: ${response.status}`);
+        }
+        
+        // Reload data
+        loadProductSupplierRelationships();
+        alert('Stock updated successfully');
+    } catch (error) {
+        console.error('Error updating stock:', error);
+        alert(`Error updating stock: ${error.message}`);
+    }
+}
+
+async function handleRemoveRelationship(e) {
+    if (!confirm('Are you sure you want to remove this supplier from the product?')) {
+        return;
+    }
+    
+    const relationshipId = e.target.getAttribute('data-id');
+    const productId = e.target.getAttribute('data-product-id');
+    
+    try {
+        const response = await fetch(`/api/products/${productId}/suppliers/${relationshipId}`, {
+            method: 'DELETE'
+        });
+        
+        if (!response.ok) {
+            throw new Error(`Failed to remove relationship: ${response.status}`);
+        }
+        
+        // Reload data
+        loadProductSupplierRelationships();
+        alert('Supplier removed from product successfully');
+    } catch (error) {
+        console.error('Error removing relationship:', error);
+        alert(`Error removing relationship: ${error.message}`);
+    }
+}
+
+// Replace the loadSuppliers function with this improved version
+async function loadSuppliers() {
+    try {
+        const suppliersListElement = document.getElementById('suppliersList');
+        if (!suppliersListElement) return;
+        
+        suppliersListElement.innerHTML = '<div class="alert alert-info">Loading suppliers...</div>';
+        
+        // Fetch suppliers
+        const response = await fetch('/api/suppliers');
+        
+        if (!response.ok) {
+            throw new Error(`Failed to load suppliers: ${response.status}`);
+        }
+        
+        const suppliers = await response.json();
+        console.log(`Loaded ${suppliers.length} suppliers`);
+        
+        // Also update the supplier select dropdown in the product-supplier form
+        const supplierSelect = document.getElementById('supplierId');
+        if (supplierSelect) {
+            // Clear existing options except the first placeholder
+            while (supplierSelect.options.length > 1) {
+                supplierSelect.remove(1);
             }
             
-            suppliersList.innerHTML = '';
+            // Add suppliers to dropdown
             suppliers.forEach(supplier => {
-                const card = document.createElement('div');
-                card.className = 'card supplier-card';
-                
-                card.innerHTML = `
+                const option = document.createElement('option');
+                option.value = supplier.id;
+                option.textContent = supplier.name;
+                supplierSelect.appendChild(option);
+            });
+        }
+        
+        if (suppliers.length === 0) {
+            suppliersListElement.innerHTML = '<div class="alert alert-info">No suppliers added yet.</div>';
+            return;
+        }
+        
+        let html = '';
+        
+        suppliers.forEach(supplier => {
+            html += `
+                <div class="card mb-3">
                     <div class="card-body">
                         <div class="d-flex justify-content-between">
                             <h5 class="card-title">${supplier.name}</h5>
@@ -311,479 +490,345 @@
                         <p class="card-text">Email: ${supplier.email}</p>
                         <p class="card-text">Lead Time: ${supplier.leadTime} days</p>
                         <p class="card-text">Integration: ${supplier.apiType}</p>
-                        <button class="btn btn-sm btn-outline-danger delete-supplier" data-id="${supplier.id}">Delete</button>
-                    </div>
-                `;
-                
-                suppliersList.appendChild(card);
-            });
-            
-            // Add event listeners for delete buttons
-            document.querySelectorAll('.delete-supplier').forEach(button => {
-                button.addEventListener('click', function() {
-                    const id = this.getAttribute('data-id');
-                    const index = suppliers.findIndex(s => s.id === id);
-                    
-                    if (index !== -1) {
-                        suppliers.splice(index, 1);
-                        renderSuppliers();
-                        updateSupplierDropdown();
-                    }
-                });
-            });
-        }
-        
-        // Update supplier dropdown in the product-supplier form
-        function updateSupplierDropdown() {
-            const select = document.getElementById('supplierId');
-            
-            // Clear options except the first one
-            while (select.options.length > 1) {
-                select.remove(1);
-            }
-            
-            // Add suppliers
-            suppliers.forEach(supplier => {
-                const option = document.createElement('option');
-                option.value = supplier.id;
-                option.textContent = supplier.name;
-                select.appendChild(option);
-            });
-        }
-        
-        // Render product suppliers
-        function renderProductSuppliers(filterProductId = '') {
-            const productSuppliersList = document.getElementById('productSuppliersList');
-            
-            let filteredProductSuppliers = productSuppliers;
-            if (filterProductId) {
-                filteredProductSuppliers = productSuppliers.filter(ps => ps.productId === filterProductId);
-            }
-            
-            if (filteredProductSuppliers.length === 0) {
-                productSuppliersList.innerHTML = '<div class="alert alert-info">No product suppliers found.</div>';
-                return;
-            }
-            
-            // Group by product ID
-            const groupedByProduct = {};
-            filteredProductSuppliers.forEach(ps => {
-                if (!groupedByProduct[ps.productId]) {
-                    groupedByProduct[ps.productId] = [];
-                }
-                groupedByProduct[ps.productId].push(ps);
-            });
-            
-            productSuppliersList.innerHTML = '';
-            
-            // For each product, create a card
-            Object.keys(groupedByProduct).forEach(productId => {
-                const productCard = document.createElement('div');
-                productCard.className = 'card mb-4';
-                
-                const suppliers = groupedByProduct[productId];
-                const productName = suppliers[0].productName;
-                
-                // Sort suppliers by priority
-                suppliers.sort((a, b) => a.priority - b.priority);
-                
-                let suppliersHtml = '';
-                suppliers.forEach(ps => {
-                    const priorityClass = ps.priority <= 3 ? 'priority-high' : (ps.priority <= 7 ? 'priority-medium' : 'priority-low');
-                    
-                    suppliersHtml += `
-                        <div class="list-group-item ${priorityClass}">
-                            <div class="d-flex justify-content-between align-items-center">
-                                <h6>${ps.supplierName}</h6>
-                                <div>
-                                    <span class="badge bg-primary">Priority: ${ps.priority}</span>
-                                    <span class="badge bg-${ps.stockLevel > 0 ? 'success' : 'danger'} stock-badge">
-                                        Stock: ${ps.stockLevel}
-                                    </span>
-                                </div>
-                            </div>
-                            <p class="mb-1">Price: $${ps.price.toFixed(2)}</p>
-                            <div class="d-flex justify-content-between align-items-center mt-2">
-                                <button class="btn btn-sm btn-outline-primary update-stock" data-id="${ps.id}">Update Stock</button>
-                                <button class="btn btn-sm btn-outline-danger delete-product-supplier" data-id="${ps.id}">Remove</button>
-                            </div>
-                        </div>
-                    `;
-                });
-                
-                productCard.innerHTML = `
-                    <div class="card-header">
-                        <h5 class="mb-0">Product: ${productName} (ID: ${productId})</h5>
-                    </div>
-                    <div class="list-group list-group-flush">
-                        ${suppliersHtml}
-                    </div>
-                `;
-                
-                productSuppliersList.appendChild(productCard);
-            });
-            
-            // Add event listeners for delete buttons
-            document.querySelectorAll('.delete-product-supplier').forEach(button => {
-                button.addEventListener('click', function() {
-                    const id = this.getAttribute('data-id');
-                    const index = productSuppliers.findIndex(ps => ps.id === id);
-                    
-                    if (index !== -1) {
-                        productSuppliers.splice(index, 1);
-                        renderProductSuppliers(filterProductId);
-                    }
-                });
-            });
-            
-            // Add event listeners for stock update buttons
-            document.querySelectorAll('.update-stock').forEach(button => {
-                button.addEventListener('click', function() {
-                    const id = this.getAttribute('data-id');
-                    const productSupplier = productSuppliers.find(ps => ps.id === id);
-                    
-                    if (productSupplier) {
-                        const newStock = prompt(`Update stock level for ${productSupplier.supplierName}:`, productSupplier.stockLevel);
                         
-                        if (newStock !== null) {
-                            productSupplier.stockLevel = parseInt(newStock);
-                            productSupplier.lastUpdated = new Date().toISOString();
-                            renderProductSuppliers(filterProductId);
-                        }
-                    }
-                });
-            });
+                        <div class="d-flex justify-content-between mt-3">
+                            <button class="btn btn-sm btn-outline-primary view-supplier-products" data-id="${supplier.id}">
+                                View Products
+                            </button>
+                            <button class="btn btn-sm btn-outline-danger delete-supplier" data-id="${supplier.id}">
+                                Delete
+                            </button>
+                        </div>
+                    </div>
+                </div>`;
+        });
+        
+        suppliersListElement.innerHTML = html;
+        
+        // Add event listeners for supplier actions
+        document.querySelectorAll('.delete-supplier').forEach(btn => {
+            btn.addEventListener('click', handleDeleteSupplier);
+        });
+        
+        document.querySelectorAll('.view-supplier-products').forEach(btn => {
+            btn.addEventListener('click', handleViewSupplierProducts);
+        });
+        
+    } catch (error) {
+        console.error('Error loading suppliers:', error);
+        const suppliersListElement = document.getElementById('suppliersList');
+        if (suppliersListElement) {
+            suppliersListElement.innerHTML = `<div class="alert alert-danger">Error: ${error.message}</div>`;
+        }
+    }
+}
+
+// Helpers for supplier actions
+async function handleDeleteSupplier(e) {
+    if (!confirm('Are you sure you want to delete this supplier? This will also remove all product relationships.')) {
+        return;
+    }
+    
+    const supplierId = e.target.getAttribute('data-id');
+    
+    try {
+        const response = await fetch(`/api/suppliers/${supplierId}`, {
+            method: 'DELETE'
+        });
+        
+        if (!response.ok) {
+            throw new Error(`Failed to delete supplier: ${response.status}`);
         }
         
-        // Simulate new order with fallback logic
-        function simulateNewOrder() {
-            if (productSuppliers.length === 0) {
-                alert('Please add product suppliers first');
-                return;
-            }
+        // Reload data
+        loadSuppliers();
+        loadProductSupplierRelationships();
+        alert('Supplier deleted successfully');
+    } catch (error) {
+        console.error('Error deleting supplier:', error);
+        alert(`Error deleting supplier: ${error.message}`);
+    }
+}
+
+async function handleViewSupplierProducts(e) {
+    const supplierId = e.target.getAttribute('data-id');
+    
+    try {
+        // Fetch products for this supplier
+        const response = await fetch(`/api/suppliers/${supplierId}/products`);
+        
+        if (!response.ok) {
+            throw new Error(`Failed to load supplier products: ${response.status}`);
+        }
+        
+        const products = await response.json();
+        
+        // Switch to product-suppliers tab
+        document.getElementById('products-tab').click();
+        
+        // Show only this supplier's relationships
+        const filterInput = document.getElementById('productFilter');
+        if (filterInput && products.length > 0) {
+            filterInput.value = products[0].productId;
+            document.getElementById('filterButton').click();
+        }
+    } catch (error) {
+        console.error('Error viewing supplier products:', error);
+        alert(`Error viewing supplier products: ${error.message}`);
+    }
+}
+
+// Function to set up all event listeners
+function setupEventListeners() {
+    // Supplier form submission
+    const supplierForm = document.getElementById('supplierForm');
+    if (supplierForm) {
+        supplierForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
             
-            // Group products and find available suppliers with stock
-            const groupedByProduct = {};
-            productSuppliers.forEach(ps => {
-                if (!groupedByProduct[ps.productId]) {
-                    groupedByProduct[ps.productId] = [];
-                }
-                groupedByProduct[ps.productId].push(ps);
-            });
-            
-            // Create order with random products (1-3 products)
-            const numProducts = Math.floor(Math.random() * 3) + 1;
-            const productIds = Object.keys(groupedByProduct);
-            const orderProducts = [];
-            
-            // Select random products and quantities
-            for (let i = 0; i < Math.min(numProducts, productIds.length); i++) {
-                const productId = productIds[Math.floor(Math.random() * productIds.length)];
-                const quantity = Math.floor(Math.random() * 5) + 1;
-                
-                // Skip if already added
-                if (orderProducts.find(p => p.productId === productId)) {
-                    continue;
-                }
-                
-                orderProducts.push({
-                    productId,
-                    productName: groupedByProduct[productId][0].productName,
-                    quantity
-                });
-            }
-            
-            // Create an order
-            const order = {
-                id: 'ORD-' + Date.now(),
-                status: 'processing',
-                items: orderProducts,
-                createdAt: new Date().toISOString()
+            const supplierData = {
+                name: document.getElementById('supplierName').value,
+                email: document.getElementById('supplierEmail').value,
+                leadTime: parseInt(document.getElementById('leadTime').value),
+                apiType: document.getElementById('apiType').value,
             };
             
-            // Process POs based on supplier availability
-            const orderPOs = [];
-            
-            // For each product, find the highest priority supplier with stock
-            order.items.forEach(item => {
-                const suppliers = groupedByProduct[item.productId];
+            try {
+                const response = await fetch('/api/suppliers', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(supplierData)
+                });
                 
-                // Sort by priority
-                suppliers.sort((a, b) => a.priority - b.priority);
-                
-                // Find first supplier with stock
-                let selectedSupplier = null;
-                for (const supplier of suppliers) {
-                    if (supplier.stockLevel >= item.quantity) {
-                        selectedSupplier = supplier;
-                        break;
-                    }
+                if (!response.ok) {
+                    throw new Error(`Failed to add supplier: ${response.status}`);
                 }
                 
-                // If no supplier has enough stock, use the highest priority one
-                if (!selectedSupplier && suppliers.length > 0) {
-                    selectedSupplier = suppliers[0];
-                }
-                
-                if (selectedSupplier) {
-                    // Find existing PO for this supplier or create new one
-                    let po = orderPOs.find(po => po.supplierId === selectedSupplier.supplierId);
-                    
-                    if (!po) {
-                        po = {
-                            poNumber: 'PO-' + Date.now() + '-' + selectedSupplier.supplierId.substring(0, 5),
-                            supplierId: selectedSupplier.supplierId,
-                            supplierName: selectedSupplier.supplierName,
-                            status: 'pending',
-                            items: [],
-                            createdAt: new Date().toISOString()
-                        };
-                        orderPOs.push(po);
-                    }
-                    
-                    // Add item to PO
-                    po.items.push({
-                        productId: item.productId,
-                        productName: item.productName,
-                        quantity: item.quantity,
-                        price: selectedSupplier.price
-                    });
-                    
-                    // Update stock level (simulate)
-                    const originalStock = selectedSupplier.stockLevel;
-                    selectedSupplier.stockLevel = Math.max(0, selectedSupplier.stockLevel - item.quantity);
-                    console.log(`Updated stock for ${selectedSupplier.supplierName} - ${item.productName}: ${originalStock} -> ${selectedSupplier.stockLevel}`);
-                }
-            });
+                // Clear form and reload data
+                this.reset();
+                loadSuppliers();
+                alert('Supplier added successfully');
+            } catch (error) {
+                console.error('Error adding supplier:', error);
+                alert(`Error adding supplier: ${error.message}`);
+            }
+        });
+    }
+    
+    // Product-Supplier form submission
+    const productSupplierForm = document.getElementById('productSupplierForm');
+    if (productSupplierForm) {
+        productSupplierForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
             
-            // Save POs
-            purchaseOrders.push(...orderPOs);
-            
-            // Update UI
-            renderProductSuppliers(document.getElementById('productFilter').value);
-            renderPurchaseOrders();
-        }
-        
-        // Render purchase orders
-        function renderPurchaseOrders() {
-            const purchaseOrdersList = document.getElementById('purchaseOrdersList');
-            
-            if (purchaseOrders.length === 0) {
-                purchaseOrdersList.innerHTML = '<div class="alert alert-info">No purchase orders generated yet.</div>';
+            const productId = document.getElementById('productId').value;
+            if (!productId) {
+                alert('Product ID is required');
                 return;
             }
             
-            purchaseOrdersList.innerHTML = '';
+            const supplierId = document.getElementById('supplierId').value;
+            if (!supplierId) {
+                alert('Please select a supplier');
+                return;
+            }
             
-            // Sort by creation date (newest first)
-            const sortedPOs = [...purchaseOrders].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+            const relationshipData = {
+                supplierId: supplierId,
+                productName: document.getElementById('productName').value,
+                priority: parseInt(document.getElementById('priority').value),
+                price: parseFloat(document.getElementById('price').value),
+                stockLevel: parseInt(document.getElementById('stockLevel').value)
+            };
             
-            sortedPOs.forEach(po => {
-                const card = document.createElement('div');
-                card.className = 'card mb-3';
-                
-                let itemsHtml = '';
-                let total = 0;
-                
-                po.items.forEach(item => {
-                    const itemTotal = item.quantity * item.price;
-                    total += itemTotal;
-                    
-                    itemsHtml += `
-                        <tr>
-                            <td>${item.productName}</td>
-                            <td>${item.quantity}</td>
-                            <td>$${item.price.toFixed(2)}</td>
-                            <td>$${itemTotal.toFixed(2)}</td>
-                        </tr>
-                    `;
+            try {
+                const response = await fetch(`/api/products/${productId}/suppliers`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(relationshipData)
                 });
                 
-                card.innerHTML = `
-                    <div class="card-header d-flex justify-content-between align-items-center">
-                        <h5>${po.poNumber}</h5>
-                        <span class="badge bg-info">${po.status}</span>
-                    </div>
-                    <div class="card-body">
-                        <h6 class="card-subtitle mb-2 text-muted">Supplier: ${po.supplierName}</h6>
-                        <p class="card-text">Created: ${new Date(po.createdAt).toLocaleString()}</p>
-                        
-                        <table class="table">
-                            <thead>
-                                <tr>
-                                    <th>Product</th>
-                                    <th>Quantity</th>
-                                    <th>Unit Price</th>
-                                    <th>Total</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                ${itemsHtml}
-                                <tr class="table-info">
-                                    <td colspan="3" class="text-end"><strong>Total:</strong></td>
-                                    <td><strong>$${total.toFixed(2)}</strong></td>
-                                </tr>
-                            </tbody>
-                        </table>
-                        
-                        <div class="d-flex justify-content-end mt-3">
-                            <button class="btn btn-sm btn-outline-primary me-2 send-po" data-id="${po.poNumber}">Send PO</button>
-                            <button class="btn btn-sm btn-outline-success me-2 approve-po" data-id="${po.poNumber}">Approve</button>
-                            <button class="btn btn-sm btn-outline-danger cancel-po" data-id="${po.poNumber}">Cancel</button>
-                        </div>
-                    </div>
-                `;
+                if (!response.ok) {
+                    throw new Error(`Failed to add product-supplier relationship: ${response.status}`);
+                }
                 
-                purchaseOrdersList.appendChild(card);
-            });
-            
-            // Add event listeners for PO actions
-            document.querySelectorAll('.send-po').forEach(button => {
-                button.addEventListener('click', function() {
-                    const poNumber = this.getAttribute('data-id');
-                    const po = purchaseOrders.find(po => po.poNumber === poNumber);
-                    
-                    if (po) {
-                        po.status = 'sent';
-                        alert(`PO ${poNumber} sent to ${po.supplierName}`);
-                        renderPurchaseOrders();
-                    }
-                });
-            });
-            
-            document.querySelectorAll('.approve-po').forEach(button => {
-                button.addEventListener('click', function() {
-                    const poNumber = this.getAttribute('data-id');
-                    const po = purchaseOrders.find(po => po.poNumber === poNumber);
-                    
-                    if (po) {
-                        po.status = 'approved';
-                        renderPurchaseOrders();
-                    }
-                });
-            });
-            
-            document.querySelectorAll('.cancel-po').forEach(button => {
-                button.addEventListener('click', function() {
-                    const poNumber = this.getAttribute('data-id');
-                    const index = purchaseOrders.findIndex(po => po.poNumber === poNumber);
-                    
-                    if (index !== -1) {
-                        purchaseOrders.splice(index, 1);
-                        renderPurchaseOrders();
-                    }
-                });
-            });
+                // Clear form and reload data
+                this.reset();
+                document.getElementById('priority').value = '1';
+                document.getElementById('stockLevel').value = '0';
+                loadProductSupplierRelationships();
+                alert('Supplier assigned to product successfully');
+            } catch (error) {
+                console.error('Error assigning supplier to product:', error);
+                alert(`Error: ${error.message}`);
+            }
+        });
+    }
+    
+    // Filter button for product suppliers
+    const filterButton = document.getElementById('filterButton');
+    if (filterButton) {
+        filterButton.addEventListener('click', function() {
+            loadProductSupplierRelationships();
+        });
+    }
+    
+    // Clear filter button
+    const clearFilterButton = document.getElementById('clearFilterButton');
+    if (clearFilterButton) {
+        clearFilterButton.addEventListener('click', function() {
+            const filterInput = document.getElementById('productFilter');
+            if (filterInput) filterInput.value = '';
+            loadProductSupplierRelationships();
+        });
+    }
+    
+    // Sync products button
+    const syncAllProductsButton = document.getElementById('syncAllProductsButton');
+    if (syncAllProductsButton) {
+        syncAllProductsButton.addEventListener('click', syncProducts);
+    }
+    
+    // Debug data button
+    const debugDataButton = document.querySelector('button[onclick="debugData()"]');
+    if (debugDataButton) {
+        debugDataButton.onclick = null; // Remove inline handler
+        debugDataButton.addEventListener('click', debugData);
+    }
+}
+
+// Add this function to sync products
+async function syncProducts() {
+    try {
+        const productsList = document.getElementById('allProductsList');
+        if (productsList) {
+            productsList.innerHTML = '<div class="alert alert-info">Syncing products, please wait...</div>';
         }
         
-        // Products Tab functionality
-        document.addEventListener('DOMContentLoaded', function() {
-            // Get button element
-            const syncButton = document.getElementById('syncAllProductsButton');
-            if (syncButton) {
-                syncButton.addEventListener('click', syncProducts);
-            }
-            
-            // Add listener for tab activation
-            const allProductsTab = document.getElementById('all-products-tab');
-            if (allProductsTab) {
-                allProductsTab.addEventListener('shown.bs.tab', loadProducts);
-            }
-            
-            // Sync products function
-            async function syncProducts() {
-                try {
-                    // Show loading message
-                    const productsList = document.getElementById('allProductsList');
-                    if (!productsList) return;
-                    
-                    productsList.innerHTML = '<div class="alert alert-info">Syncing products, please wait...</div>';
-                    
-                    // Call the API to sync products
-                    const response = await fetch('/api/products/sync', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        }
-                    });
-                    
-                    if (!response.ok) {
-                        throw new Error(`Failed to sync products: ${response.status}`);
-                    }
-                    
-                    const result = await response.json();
-                    console.log('Sync result:', result);
-                    
-                    // After syncing, load the products
-                    loadProducts();
-                    
-                } catch (error) {
-                    console.error('Error syncing products:', error);
-                    const productsList = document.getElementById('allProductsList');
-                    if (productsList) {
-                        productsList.innerHTML = `<div class="alert alert-danger">Error: ${error.message}</div>`;
-                    }
-                }
-            }
-            
-            // Load products function
-            async function loadProducts() {
-                try {
-                    const productsList = document.getElementById('allProductsList');
-                    if (!productsList) return;
-                    
-                    productsList.innerHTML = '<div class="alert alert-info">Loading products...</div>';
-                    
-                    const response = await fetch('/api/products');
-                    if (!response.ok) {
-                        throw new Error(`Failed to load products: ${response.status}`);
-                    }
-                    
-                    const products = await response.json();
-                    console.log(`Loaded ${products.length} products`);
-                    
-                    if (products.length === 0) {
-                        productsList.innerHTML = '<div class="alert alert-info">No products found. Click "Sync Products" to fetch from your Shopify store.</div>';
-                        return;
-                    }
-                    
-                  // Display the products in a Bootstrap grid
-let productsHtml = '<div class="row">';
-products.forEach(product => {
-    productsHtml += `
-        <div class="col-md-4 mb-3">
-            <div class="card">
-                <div class="card-body">
-                    <h5 class="card-title">${product.title || 'Unnamed Product'}</h5>
-                    <p class="card-text">Variants: ${product.variants?.length || 0}</p>
-                    <p class="text-sm text-gray-500">ID: ${product.id}</p>
-                    <a href="/product-detail.html?id=${product.id}" class="btn btn-sm btn-primary">
-                        Manage Suppliers
-                    </a>
-                </div>
-            </div>
-        </div>
-    `;
-});
-productsHtml += '</div>';
-                    
-                    productsList.innerHTML = productsHtml;
-                    
-                } catch (error) {
-                    console.error('Error loading products:', error);
-                    const productsList = document.getElementById('allProductsList');
-                    if (productsList) {
-                        productsList.innerHTML = `<div class="alert alert-danger">Error: ${error.message}</div>`;
-                    }
-                }
+        const response = await fetch('/api/products/sync', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
             }
         });
         
-        // Initialize the UI
-        renderSuppliers();
-        updateSupplierDropdown();
-        renderProductSuppliers();
-        renderPurchaseOrders();
+        if (!response.ok) {
+            throw new Error(`Failed to sync products: ${response.status}`);
+        }
+        
+        const result = await response.json();
+        console.log('Sync result:', result);
+        
+        // Load products
+        loadAllProducts();
+    } catch (error) {
+        console.error('Error syncing products:', error);
+        const productsList = document.getElementById('allProductsList');
+        if (productsList) {
+            productsList.innerHTML = `<div class="alert alert-danger">Error: ${error.message}</div>`;
+        }
+    }
+}
+
+// Add this function to load all products
+async function loadAllProducts() {
+    try {
+        const productsList = document.getElementById('allProductsList');
+        if (!productsList) return;
+        
+        productsList.innerHTML = '<div class="alert alert-info">Loading products...</div>';
+        
+        const response = await fetch('/api/products');
+        
+        if (!response.ok) {
+            throw new Error(`Failed to load products: ${response.status}`);
+        }
+        
+        const products = await response.json();
+        console.log(`Loaded ${products.length} products`);
+        
+        if (products.length === 0) {
+            productsList.innerHTML = '<div class="alert alert-info">No products found. Click "Sync Products" to fetch from your Shopify store.</div>';
+            return;
+        }
+        
+        let html = '<div class="row">';
+        
+        products.forEach((product, index) => {
+            // Create a new row every 3 products
+            if (index > 0 && index % 3 === 0) {
+                html += '</div><div class="row mt-3">';
+            }
+            
+            html += `
+                <div class="col-md-4 mb-3">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <h5 class="card-title text-truncate" title="${product.title || 'Unnamed Product'}">${product.title || 'Unnamed Product'}</h5>
+                            <p class="card-text">Variants: ${product.variants?.length || 0}</p>
+                            <p class="text-muted small">ID: ${product.id}</p>
+                        </div>
+                        <div class="card-footer d-flex justify-content-between">
+                            <a href="/product-detail.html?id=${product.id}" class="btn btn-sm btn-primary">
+                                Manage Suppliers
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+        
+        html += '</div>';
+        productsList.innerHTML = html;
+    } catch (error) {
+        console.error('Error loading products:', error);
+        const productsList = document.getElementById('allProductsList');
+        if (productsList) {
+            productsList.innerHTML = `<div class="alert alert-danger">Error: ${error.message}</div>`;
+        }
+    }
+}
+
+// Add this function for debugging
+function debugData() {
+    // Fetch current app state
+    fetch('/api/debug/app-state')
+        .then(response => response.json())
+        .then(data => {
+            console.log('Debug data:', data);
+            
+            // Create debug output
+            const debugOutput = document.createElement('div');
+            debugOutput.className = 'alert alert-info mt-3';
+            debugOutput.innerHTML = `
+                <h4>Debug Information</h4>
+                <p>Total suppliers: ${data.suppliers?.count || 0}</p>
+                <p>Total product-supplier relationships: ${data.productSuppliers?.count || 0}</p>
+                <p>Products with suppliers: ${data.productSuppliers?.uniqueProductIds?.join(', ') || 'None'}</p>
+                <details>
+                    <summary>View Data</summary>
+                    <pre>${JSON.stringify(data, null, 2)}</pre>
+                </details>
+            `;
+            
+            // Find a good place to insert the debug data
+            const container = document.querySelector('.container');
+            if (container) {
+                container.appendChild(debugOutput);
+                
+                // Scroll to the debug output
+                debugOutput.scrollIntoView({ behavior: 'smooth' });
+            }
+        })
+        .catch(error => {
+            console.error('Error fetching debug data:', error);
+            alert(`Error fetching debug data: ${error.message}`);
+        });
+}
     </script>
 </body>
 </html>
