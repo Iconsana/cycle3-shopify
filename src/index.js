@@ -436,22 +436,6 @@ app.get('/api/products/:productId/detail', async (req, res) => {
   }
 });
 
-// Modified getProductById function
-export const getProductById = async (productId) => {
-  try {
-    const db = await getDB();
-    await db.read();
-    
-    // FIX: Ensure consistent string comparison
-    const stringProductId = String(productId);
-    
-    return db.data.products.find(p => String(p.id) === stringProductId) || null;
-  } catch (error) {
-    console.error(`Error getting product ${productId}:`, error);
-    return null;
-  }
-};
-
 // API routes for specific product's suppliers
 app.get('/api/products/:productId/suppliers', async (req, res) => {
   try {
