@@ -170,6 +170,21 @@ app.get('/health', (req, res) => {
   });
 });
 
+
+// Make sure these lines appear BEFORE your routes in index.js
+// But AFTER your middleware setup
+
+// Define paths properly
+const publicPath = path.join(__dirname, '..', 'public');
+console.log('Public directory path:', publicPath);
+
+// Serve static files from public directory
+app.use(express.static(publicPath));
+
+// Create public directory if it doesn't exist
+if (!fs.existsSync(publicPath)) {
+  fs.mkdirSync(publicPath, { recursive: true });
+}
 // Root route - serve index.html or API status based on content type
 app.get('/', (req, res) => {
   if (req.accepts('html')) {
