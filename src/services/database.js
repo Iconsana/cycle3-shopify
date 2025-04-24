@@ -112,6 +112,36 @@ export const addSupplier = async (supplier) => {
   }
 };
 
+// Add this function to src/services/database.js
+
+// Add a supplier - THIS IS THE MISSING FUNCTION
+export const addSupplier = async (supplier) => {
+  try {
+    const db = await getDB();
+    await db.read();
+    
+    // Ensure the supplier has an ID
+    if (!supplier.id) {
+      supplier.id = Date.now().toString();
+    }
+    
+    // Add timestamps if not present
+    if (!supplier.createdAt) {
+      supplier.createdAt = new Date().toISOString();
+    }
+    
+    console.log(`Adding new supplier: ${supplier.name}`);
+    
+    db.data.suppliers.push(supplier);
+    await db.write();
+    
+    return supplier;
+  } catch (error) {
+    console.error('Error adding supplier:', error);
+    throw error;
+  }
+};
+
 // Get purchase orders
 export const getPurchaseOrders = async () => {
   try {
