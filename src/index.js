@@ -175,8 +175,7 @@ app.get('/health', (req, res) => {
 // But AFTER your middleware setup
 
 // Define paths properly
-const publicPath = path.join(__dirname, '..', 'public');
-console.log('Public directory path:', publicPath);
+publicPath = path.join(__dirname, '..', 'public');console.log('Public directory path:', publicPath);
 
 // Serve static files from public directory
 app.use(express.static(publicPath));
