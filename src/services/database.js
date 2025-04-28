@@ -22,33 +22,31 @@ export const initDB = async () => {
       fs.mkdirSync(dataDir, { recursive: true });
     }
 
-    // Create or load database file
+    // Default data structure
+    const defaultData = {
+      suppliers: [],
+      productSuppliers: [],
+      purchaseOrders: [],
+      products: []
+    };
+
+    // Create db file if it doesn't exist
     if (!fs.existsSync(dbPath)) {
-      const defaultData = {
-        suppliers: [],
-        productSuppliers: [],
-        purchaseOrders: [],
-        products: []
-      };
       fs.writeFileSync(dbPath, JSON.stringify(defaultData, null, 2));
     }
 
-    // Initialize lowdb
+    // Initialize lowdb - FIX: Pass defaultData as second argument
     const adapter = new JSONFile(dbPath);
-    db = new Low(adapter);
+    db = new Low(adapter, defaultData); // Pass defaultData here
     await db.read();
 
     // Ensure the database has all required arrays
     if (!db.data) {
-      db.data = { 
-        suppliers: [], 
-        productSuppliers: [],
-        purchaseOrders: [],
-        products: []
-      };
+      db.data = defaultData;
       await db.write();
     }
 
+    // Make sure all collections exist
     if (!db.data.suppliers) db.data.suppliers = [];
     if (!db.data.productSuppliers) db.data.productSuppliers = [];
     if (!db.data.purchaseOrders) db.data.purchaseOrders = [];
