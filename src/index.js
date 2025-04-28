@@ -710,11 +710,12 @@ app.get('/api/products', async (req, res) => {
   }
 });
 
-// API route to sync products from Shopify
+// Improved product sync functionality
 app.post('/api/products/sync', async (req, res) => {
   try {
     console.log('Starting product sync...');
     
+    // Create a client with proper error handling
     const client = new shopify.clients.Rest({
       session: {
         shop: process.env.SHOPIFY_SHOP_NAME,
@@ -722,59 +723,87 @@ app.post('/api/products/sync', async (req, res) => {
       }
     });
     
-    // Fetch products from Shopify
-    let allProducts = [];
-    let params = { limit: 50 };
-    let hasNextPage = true;
+    console.log('Created Shopify client, fetching products...');
     
-    while (hasNextPage) {
-      const response = await client.get({
+    // Better error handling for the API request
+    let response;
+    try {
+      response = await client.get({
         path: 'products',
-        query: params
+        query: { limit: 20 } // Reduced limit for testing
       });
+    } catch (apiError) {
+      console.error('Shopify API error:', apiError.message);
+      console.error('Status:', apiError.status);
+      console.error('Headers:', apiError.headers);
       
-      const products = response.body.products || [];
-      allProducts = [...allProducts, ...products];
-      
-      // Check if there's a next page
-      hasNextPage = false;
-      if (response.pageInfo?.nextPage?.query) {
-        params = response.pageInfo.nextPage.query;
-        hasNextPage = true;
+      // Check for common issues
+      if (apiError.message.includes('access')) {
+        return res.status(403).json({ 
+          error: 'Shopify API access denied. Check access token and permissions.',
+          details: apiError.message
+        });
       }
+      
+      throw apiError; // Re-throw to be caught by outer catch
     }
     
-    console.log(`Fetched ${allProducts.length} products from shop`);
+    // Process products with careful error handling
+    const products = response.body.products || [];
+    console.log(`Fetched ${products.length} products from shop`);
     
-    // Format products for storage
-    const formattedProducts = allProducts.map(product => ({
+    if (products.length === 0) {
+      console.log('Warning: No products returned from Shopify');
+      // This isn't an error - store may be empty
+    }
+    
+    // Format products for storage with error resilience
+    const formattedProducts = products.map(product => ({
       id: product.id,
-      title: product.title,
-      handle: product.handle,
-      variants: product.variants?.map(v => ({
+      title: product.title || 'Unnamed Product',
+      handle: product.handle || '',
+      variants: Array.isArray(product.variants) ? product.variants.map(v => ({
         id: v.id,
-        title: v.title,
+        title: v.title || '',
         sku: v.sku || '',
-        price: v.price,
-        inventory_quantity: v.inventory_quantity || 0
-      })) || []
+        price: parseFloat(v.price || 0),
+        inventory_quantity: parseInt(v.inventory_quantity || 0, 10)
+      })) : []
     }));
     
-    // Store in database
-    await storeProducts(formattedProducts);
+    // Safely store in database
+    try {
+      const db = await getDB();
+      await db.read();
+      db.data.products = formattedProducts;
+      await db.write();
+      console.log(`Successfully stored ${formattedProducts.length} products in database`);
+    } catch (dbError) {
+      console.error('Database error when storing products:', dbError);
+      return res.status(500).json({ 
+        error: 'Failed to store products in database',
+        message: dbError.message 
+      });
+    }
     
-    // Update in-memory
-    app.locals.products = formattedProducts;
+    // Update in-memory state
+    req.app.locals.products = formattedProducts;
     
     console.log(`Synchronized ${formattedProducts.length} products`);
     
+    // Return success response
     res.json({ 
       success: true, 
-      message: `Synchronized ${formattedProducts.length} products` 
+      message: `Synchronized ${formattedProducts.length} products`,
+      products: formattedProducts.map(p => ({id: p.id, title: p.title})) // Just return minimal info
     });
   } catch (error) {
-    console.error('Error syncing products:', error);
-    res.status(500).json({ error: 'Error syncing products', message: error.message });
+    console.error('Product sync failed:', error);
+    res.status(500).json({ 
+      error: 'Error syncing products', 
+      message: error.message,
+      stack: process.env.NODE_ENV === 'production' ? undefined : error.stack
+    });
   }
 });
 
