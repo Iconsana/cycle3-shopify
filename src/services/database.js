@@ -81,6 +81,7 @@ export const getSuppliers = async () => {
 };
 
 // Add a supplier - THIS IS THE MISSING FUNCTION
+// Add a supplier - ensure consistent handling
 export const addSupplier = async (supplier) => {
   try {
     const db = await getDB();
@@ -96,7 +97,17 @@ export const addSupplier = async (supplier) => {
       supplier.createdAt = new Date().toISOString();
     }
     
-    console.log(`Adding new supplier: ${supplier.name}`);
+    // Check for duplicate supplier names
+    const existingSupplier = db.data.suppliers.find(s => 
+      s.name.toLowerCase() === supplier.name.toLowerCase()
+    );
+    
+    if (existingSupplier) {
+      console.log(`Supplier with name ${supplier.name} already exists with ID: ${existingSupplier.id}`);
+      return existingSupplier;
+    }
+    
+    console.log(`Adding new supplier: ${supplier.name} with ID ${supplier.id}`);
     
     db.data.suppliers.push(supplier);
     await db.write();
@@ -108,7 +119,7 @@ export const addSupplier = async (supplier) => {
   }
 };
 
-// Get product suppliers
+// Get product suppliers - fixed version to ensure consistent comparison
 export const getProductSuppliers = async (productId = null) => {
   try {
     const db = await getDB();
@@ -118,13 +129,35 @@ export const getProductSuppliers = async (productId = null) => {
     if (productId) {
       console.log(`Getting suppliers for product: ${productId}`);
       console.log(`Total product-supplier relationships: ${db.data.productSuppliers.length}`);
-      console.log(`All product IDs: ${[...new Set(db.data.productSuppliers.map(ps => ps.productId))].join(', ')}`);
+      
+      // List all product IDs for debugging
+      const allProductIds = [...new Set(db.data.productSuppliers.map(ps => ps.productId))];
+      console.log(`All product IDs in database: ${allProductIds.join(', ')}`);
     }
     
     if (productId) {
-      // Convert both sides to strings for comparison
-      return db.data.productSuppliers.filter(ps => String(ps.productId) === String(productId)) || [];
+      // IMPORTANT FIX: Always convert both IDs to strings for comparison
+      const stringProductId = String(productId);
+      
+      const matchingSuppliers = db.data.productSuppliers.filter(ps => 
+        String(ps.productId) === stringProductId
+      );
+      
+      console.log(`Found ${matchingSuppliers.length} suppliers for product ${productId}`);
+      
+      // Enrich with supplier names if needed
+      return matchingSuppliers.map(supplier => {
+        // If supplier name is missing, try to find it
+        if (!supplier.supplierName && supplier.supplierId) {
+          const relatedSupplier = db.data.suppliers.find(s => s.id === supplier.supplierId);
+          if (relatedSupplier) {
+            supplier.supplierName = relatedSupplier.name;
+          }
+        }
+        return supplier;
+      });
     }
+    
     return db.data.productSuppliers || [];
   } catch (error) {
     console.error('Error getting product suppliers:', error);
@@ -132,7 +165,7 @@ export const getProductSuppliers = async (productId = null) => {
   }
 };
 
-// Add product supplier
+// Add product supplier - fixed version for consistent data
 export const addProductSupplier = async (productSupplier) => {
   try {
     const db = await getDB();
@@ -153,12 +186,36 @@ export const addProductSupplier = async (productSupplier) => {
       productSupplier.productId = String(productSupplier.productId);
     }
     
+    // First check if this relationship already exists (by product ID and supplier ID)
+    if (productSupplier.supplierId && productSupplier.productId) {
+      const existingRelationship = db.data.productSuppliers.find(ps => 
+        String(ps.productId) === String(productSupplier.productId) && 
+        ps.supplierId === productSupplier.supplierId
+      );
+      
+      if (existingRelationship) {
+        console.log(`Relationship already exists for Product=${productSupplier.productId} and Supplier=${productSupplier.supplierId}`);
+        
+        // Update existing relationship
+        existingRelationship.priority = productSupplier.priority || existingRelationship.priority;
+        existingRelationship.price = productSupplier.price || existingRelationship.price;
+        existingRelationship.stockLevel = productSupplier.stockLevel || existingRelationship.stockLevel;
+        existingRelationship.updatedAt = new Date().toISOString();
+        
+        await db.write();
+        return existingRelationship;
+      }
+    }
+    
     // Check if supplier exists in main suppliers collection
     const supplierName = productSupplier.supplierName || productSupplier.name;
-    let supplier = db.data.suppliers.find(s => 
-      (s.id === productSupplier.supplierId) || 
-      (s.name === supplierName)
-    );
+    let supplier = null;
+    
+    if (productSupplier.supplierId) {
+      supplier = db.data.suppliers.find(s => s.id === productSupplier.supplierId);
+    } else if (supplierName) {
+      supplier = db.data.suppliers.find(s => s.name === supplierName);
+    }
     
     // If not found, add it to suppliers collection
     if (!supplier && supplierName) {
@@ -173,13 +230,18 @@ export const addProductSupplier = async (productSupplier) => {
       };
       
       db.data.suppliers.push(supplier);
-      console.log(`Added new supplier: ${supplier.name}`);
+      console.log(`Added new supplier: ${supplier.name} with ID ${supplier.id}`);
       
       // Update supplierId in productSupplier
       productSupplier.supplierId = supplier.id;
     } else if (supplier) {
       // Ensure we're using the correct supplierId
       productSupplier.supplierId = supplier.id;
+      
+      // Update supplierName if missing
+      if (!productSupplier.supplierName) {
+        productSupplier.supplierName = supplier.name;
+      }
     }
     
     console.log(`Adding product-supplier relationship: ProductID=${productSupplier.productId}, SupplierName=${supplierName}`);
@@ -209,17 +271,24 @@ export const getPurchaseOrders = async () => {
 };
 
 // Update product supplier stock
+// Update product supplier stock - fixed version
 export const updateProductSupplierStock = async (id, stockLevel) => {
   try {
+    console.log(`Updating stock level for supplier relationship ${id} to ${stockLevel}`);
+    
     const db = await getDB();
     await db.read();
     
-    const index = db.data.productSuppliers.findIndex(ps => ps.id === id);
+    const index = db.data.productSuppliers.findIndex(ps => String(ps.id) === String(id));
+    
     if (index === -1) {
+      console.error(`Product supplier relationship with ID ${id} not found`);
       throw new Error(`Product supplier with ID ${id} not found`);
     }
     
-    db.data.productSuppliers[index].stockLevel = stockLevel;
+    console.log(`Found relationship at index ${index}, updating stock level`);
+    
+    db.data.productSuppliers[index].stockLevel = parseInt(stockLevel);
     db.data.productSuppliers[index].updatedAt = new Date().toISOString();
     
     await db.write();
@@ -258,15 +327,27 @@ export const getProducts = async () => {
   }
 };
 
-// Get product by ID
+// Get product by ID - fixed version
 export const getProductById = async (productId) => {
   try {
     const db = await getDB();
     await db.read();
     
-    return db.data.products.find(p => String(p.id) === String(productId)) || null;
+    // IMPORTANT FIX: Always convert both IDs to strings for comparison
+    const stringProductId = String(productId);
+    
+    const product = db.data.products.find(p => String(p.id) === stringProductId);
+    
+    if (product) {
+      console.log(`Found product with ID ${productId} in database`);
+    } else {
+      console.log(`Product with ID ${productId} not found in database`);
+    }
+    
+    return product || null;
   } catch (error) {
     console.error(`Error getting product ${productId}:`, error);
     return null;
   }
 };
+
