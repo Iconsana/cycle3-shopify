@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Supplier Integration Test</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100">
+    <div class="container mx-auto px-4 py-8 max-w-4xl">
+        <h1 class="text-2xl font-bold mb-8">Multi-Supplier Integration Test</h1>
+
+        <div class="bg-white rounded-lg shadow-md p-6 mb-8">
+            <h2 class="text-xl font-semibold mb-4">Test Cross-Page Integration</h2>
+            <p class="mb-4">This page helps diagnose connection issues between the Product Detail page and Supplier Management pages.</p>
+            
+            <div class="mb-6">
+                <button id="testProductSuppliers" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 mr-2">
+                    Test Product-Supplier Connection
+                </button>
+                <button id="clearData" class="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600">
+                    Clear Test Data
+                </button>
+            </div>
+            
+            <div id="testResult" class="mt-4 p-4 bg-gray-100 rounded hidden overflow-auto max-h-96">
+                Test results will appear here...
+            </div>
+        </div>
+        
+        <div class="bg-white rounded-lg shadow-md p-6 mb-8">
+            <h2 class="text-xl font-semibold mb-4">Create Test Supplier</h2>
+            
+            <form id="testSupplierForm" class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium mb-1">Supplier Name</label>
+                    <input type="text" id="supplierName" value="Test Supplier" class="w-full p-2 border rounded">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1">Email</label>
+                    <input type="email" id="supplierEmail" value="test@example.com" class="w-full p-2 border rounded">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1">Lead Time (days)</label>
+                    <input type="number" id="leadTime" value="3" class="w-full p-2 border rounded">
+                </div>
+                <button type="submit" class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600">
+                    Create Supplier
+                </button>
+            </form>
+            
+            <div id="supplierResult" class="mt-4 p-4 bg-gray-100 rounded hidden">
+                Result will appear here...
+            </div>
+        </div>
+        
+        <div class="bg-white rounded-lg shadow-md p-6 mb-8">
+            <h2 class="text-xl font-semibold mb-4">Assign Supplier to Product</h2>
+            
+            <form id="assignSupplierForm" class="space-y-4">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium mb-1">Product ID</label>
+                        <input type="text" id="productId" value="9733845057853" class="w-full p-2 border rounded">
+                        <p class="text-xs text-gray-500 mt-1">Default is from your screenshot</p>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium mb-1">Supplier</label>
+                        <select id="supplierId" class="w-full p-2 border rounded">
+                            <option value="">Loading suppliers...</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium mb-1">Priority</label>
+                        <input type="number" id="priority" value="1" min="1" class="w-full p-2 border rounded">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium mb-1">Price</label>
+                        <input type="number" id="price" value="99.99" step="0.01" class="w-full p-2 border rounded">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium mb-1">Stock Level</label>
+                        <input type="number" id="stockLevel" value="50" min="0" class="w-full p-2 border rounded">
+                    </div>
+                </div>
+                
+                <button type="submit" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
+                    Assign Supplier to Product
+                </button>
+            </form>
+            
+            <div id="assignResult" class="mt-4 p-4 bg-gray-100 rounded hidden">
+                Result will appear here...
+            </div>
+        </div>
+        
+        <div class="flex justify-between mt-8">
+            <a href="/" class="text-blue-500 hover:underline">Back to Home</a>
+            <a href="/product-detail.html?id=9733845057853" class="text-blue-500 hover:underline">View Example Product</a>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Load suppliers for dropdown
+            loadSuppliers();
+            
+            // Test connection button
+            document.getElementById('testProductSuppliers').addEventListener('click', async function() {
+                const resultDiv = document.getElementById('testResult');
+                resultDiv.innerHTML = 'Running test...';
+                resultDiv.classList.remove('hidden');
+                
+                try {
+                    // Get database state
+                    const stateResponse = await fetch('/api/debug/app-state');
+                    const state = await stateResponse.json();
+                    
+                    // Create test results
+                    let html = `<h3 class="font-bold mb-2">Current Database State:</h3>
+                        <ul class="list-disc ml-5 mb-4">
+                            <li>Suppliers: ${state.suppliers.count}</li>
+                            <li>Product-Supplier Relationships: ${state.productSuppliers.count}</li>
+                            <li>Products: ${state.products.count}</li>
+                        </ul>`;
+                    
+                    // Get product IDs with supplier relationships
+                    if (state.productSuppliers.uniqueProductIds && state.productSuppliers.uniqueProductIds.length > 0) {
+                        html += `<h3 class="font-bold mb-2">Products with Suppliers:</h3>
+                            <ul class="list-disc ml-5 mb-4">`;
+                        
+                        for (const productId of state.productSuppliers.uniqueProductIds) {
+                            html += `<li>Product ID: ${productId} 
+                                <a href="/product-detail.html?id=${productId}" class="text-blue-500 hover:underline">View</a>
+                            </li>`;
+                        }
+                        
+                        html += `</ul>`;
+                    }
+                    
+                    // Add sample data
+                    if (state.productSuppliers.samples && state.productSuppliers.samples.length > 0) {
+                        html += `<h3 class="font-bold mb-2">Sample Product-Supplier Relationship:</h3>
+                            <pre class="bg-gray-800 text-white p-3 rounded overflow-auto">${JSON.stringify(state.productSuppliers.samples[0], null, 2)}</pre>`;
+                    }
+                    
+                    resultDiv.innerHTML = html;
+                } catch (error) {
+                    resultDiv.innerHTML = `<div class="text-red-600">Error: ${error.message}</div>`;
+                }
+            });
+            
+            // Clear data button
+            document.getElementById('clearData').addEventListener('click', function() {
+                if (confirm('This will reset test data. Continue?')) {
+                    document.getElementById('testResult').innerHTML = '<div class="p-4 bg-yellow-100 rounded">Feature not implemented. To clear data, restart your application.</div>';
+                    document.getElementById('testResult').classList.remove('hidden');
+                }
+            });
+            
+            // Create supplier form
+            document.getElementById('testSupplierForm').addEventListener('submit', async function(e) {
+                e.preventDefault();
+                
+                const resultDiv = document.getElementById('supplierResult');
+                resultDiv.innerHTML = 'Creating supplier...';
+                resultDiv.classList.remove('hidden');
+                
+                const supplierData = {
+                    name: document.getElementById('supplierName').value,
+                    email: document.getElementById('supplierEmail').value,
+                    leadTime: parseInt(document.getElementById('leadTime').value),
+                    apiType: 'email'
+                };
+                
+                try {
+                    const response = await fetch('/api/suppliers', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(supplierData)
+                    });
+                    
+                    if (!response.ok) {
+                        throw new Error(`Failed with status: ${response.status}`);
+                    }
+                    
+                    const result = await response.json();
+                    
+                    resultDiv.innerHTML = `
+                        <div class="p-4 bg-green-100 rounded">
+                            <h3 class="font-bold text-green-800">Supplier created successfully!</h3>
+                            <p>ID: ${result.id}</p>
+                            <p>Name: ${result.name}</p>
+                            <p>Email: ${result.email}</p>
+                        </div>
+                    `;
+                    
+                    // Reload suppliers
+                    loadSuppliers();
+                    
+                } catch (error) {
+                    resultDiv.innerHTML = `
+                        <div class="p-4 bg-red-100 rounded">
+                            <h3 class="font-bold text-red-800">Error creating supplier</h3>
+                            <p>${error.message}</p>
+                        </div>
+                    `;
+                }
+            });
+            
+            // Assign supplier to product form
+            document.getElementById('assignSupplierForm').addEventListener('submit', async function(e) {
+                e.preventDefault();
+                
+                const resultDiv = document.getElementById('assignResult');
+                resultDiv.innerHTML = 'Assigning supplier to product...';
+                resultDiv.classList.remove('hidden');
+                
+                const productId = document.getElementById('productId').value;
+                const supplierId = document.getElementById('supplierId').value;
+                
+                if (!productId) {
+                    resultDiv.innerHTML = '<div class="p-4 bg-red-100 rounded">Please enter a product ID</div>';
+                    return;
+                }
+                
+                if (!supplierId) {
+                    resultDiv.innerHTML = '<div class="p-4 bg-red-100 rounded">Please select a supplier</div>';
+                    return;
+                }
+                
+                const data = {
+                    supplierId: supplierId,
+                    priority: parseInt(document.getElementById('priority').value),
+                    price: parseFloat(document.getElementById('price').value),
+                    stockLevel: parseInt(document.getElementById('stockLevel').value)
+                };
+                
+                try {
+                    const response = await fetch(`/api/products/${productId}/suppliers`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(data)
+                    });
+                    
+                    if (!response.ok) {
+                        throw new Error(`Failed with status: ${response.status}`);
+                    }
+                    
+                    const result = await response.json();
+                    
+                    resultDiv.innerHTML = `
+                        <div class="p-4 bg-green-100 rounded">
+                            <h3 class="font-bold text-green-800">Supplier assigned successfully!</h3>
+                            <p>Relationship ID: ${result.id}</p>
+                            <p>Product ID: ${result.productId}</p>
+                            <p>Supplier: ${result.supplierName}</p>
+                            <p>Priority: ${result.priority}</p>
+                            <p>Stock: ${result.stockLevel}</p>
+                            <div class="mt-3">
+                                <a href="/product-detail.html?id=${productId}" class="bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600">
+                                    View on Product Page
+                                </a>
+                            </div>
+                        </div>
+                    `;
+                    
+                } catch (error) {
+                    resultDiv.innerHTML = `
+                        <div class="p-4 bg-red-100 rounded">
+                            <h3 class="font-bold text-red-800">Error assigning supplier</h3>
+                            <p>${error.message}</p>
+                        </div>
+                    `;
+                }
+            });
+            
+            // Load suppliers for dropdown
+            async function loadSuppliers() {
+                try {
+                    const response = await fetch('/api/suppliers');
+                    const suppliers = await response.json();
+                    
+                    const selectElement = document.getElementById('supplierId');
+                    selectElement.innerHTML = '';
+                    
+                    if (suppliers.length === 0) {
+                        selectElement.innerHTML = '<option value="">No suppliers available</option>';
+                        return;
+                    }
+                    
+                    suppliers.forEach(supplier => {
+                        const option = document.createElement('option');
+                        option.value = supplier.id;
+                        option.textContent = supplier.name;
+                        selectElement.appendChild(option);
+                    });
+                    
+                } catch (error) {
+                    console.error('Error loading suppliers:', error);
+                    document.getElementById('supplierId').innerHTML = '<option value="">Error loading suppliers</option>';
+                }
+            }
+        });
+    </script>
+</body>
+</html>
