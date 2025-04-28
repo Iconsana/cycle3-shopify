@@ -414,17 +414,54 @@ app.post('/api/product-suppliers', async (req, res) => {
   }
 });
 
-// Modified API route to get a specific product with suppliers
+
+// API endpoint for product detail with suppliers
 app.get('/api/products/:productId/detail', async (req, res) => {
   try {
     const { productId } = req.params;
-    console.log(`GET /api/products/${productId}/detail`);
+    console.log(`GET /api/products/${productId}/detail - Loading product detail`);
     
     // FIX: Ensure consistent string comparison for product IDs
     const stringProductId = String(productId);
     
-    // Get the product
-    const product = await getProductById(stringProductId);
+    // First - Try to find the product in our database
+    let product = await getProductById(stringProductId);
+    
+    // If not found in our database, try to fetch from Shopify
+    if (!product) {
+      console.log(`Product ${stringProductId} not found in database, trying Shopify API`);
+      
+      try {
+        // Create a client using the app's access token
+        const client = new shopify.clients.Rest({
+          session: {
+            shop: process.env.SHOPIFY_SHOP_NAME,
+            accessToken: process.env.SHOPIFY_ACCESS_TOKEN
+          }
+        });
+
+        const response = await client.get({
+          path: `products/${productId}`
+        });
+
+        if (response.body.product) {
+          product = {
+            id: response.body.product.id,
+            title: response.body.product.title,
+            handle: response.body.product.handle,
+            variants: response.body.product.variants.map(v => ({
+              id: v.id,
+              title: v.title,
+              sku: v.sku || '',
+              price: parseFloat(v.price),
+              inventory_quantity: v.inventory_quantity
+            }))
+          };
+        }
+      } catch (shopifyError) {
+        console.error(`Error fetching product from Shopify: ${shopifyError.message}`);
+      }
+    }
     
     if (!product) {
       return res.status(404).json({ error: 'Product not found' });
@@ -448,8 +485,8 @@ app.get('/api/products/:productId/detail', async (req, res) => {
     });
   }
 });
-
 // API routes for specific product's suppliers
+// Improved route to get a specific product's suppliers
 app.get('/api/products/:productId/suppliers', async (req, res) => {
   try {
     const { productId } = req.params;
@@ -459,9 +496,6 @@ app.get('/api/products/:productId/suppliers', async (req, res) => {
     
     // Debug logging
     console.log(`GET /api/products/${productId}/suppliers`);
-    const allProductSuppliers = await getProductSuppliers();
-    console.log('Total productSuppliers in database:', allProductSuppliers.length);
-    console.log('Product IDs in storage:', [...new Set(allProductSuppliers.map(ps => ps.productId))]);
     console.log(`Returning: ${suppliers.length} suppliers for product ${productId}`);
     
     res.json(suppliers);
@@ -471,7 +505,7 @@ app.get('/api/products/:productId/suppliers', async (req, res) => {
   }
 });
 
-// Modified API route for adding suppliers to products
+// Modify the API route for adding suppliers to products to handle different input formats
 app.post('/api/products/:productId/suppliers', async (req, res) => {
   try {
     const { productId } = req.params;
@@ -484,24 +518,21 @@ app.post('/api/products/:productId/suppliers', async (req, res) => {
     // FIX: Ensure consistent string comparison for product IDs
     const stringProductId = String(productId);
     
-    // Validate if product exists
+    // Validate if product exists (but don't block if product ID is in a different format)
     const product = db.data.products.find(p => String(p.id) === stringProductId);
-    if (!product && !stringProductId.includes('gid://')) {
-      // Only validate if not using a Shopify GID
-      return res.status(404).json({ error: 'Product not found' });
-    }
     
-    // Find supplier if supplierId is provided
-    let supplierName = supplierData.name;
+    // Find or create supplier
     let supplierId = supplierData.supplierId;
+    let supplierName = supplierData.name || supplierData.supplierName;
     
     if (supplierId) {
-      const supplier = db.data.suppliers.find(s => s.id === supplierId);
-      if (supplier) {
-        supplierName = supplier.name;
+      // Using existing supplier - look it up to get the name
+      const existingSupplier = db.data.suppliers.find(s => s.id === supplierId);
+      if (existingSupplier) {
+        supplierName = existingSupplier.name;
       }
     } else if (supplierName) {
-      // If supplierId is not provided but name is, try to find or create supplier
+      // Check if supplier already exists with this name
       const existingSupplier = db.data.suppliers.find(s => 
         s.name.toLowerCase() === supplierName.toLowerCase()
       );
@@ -525,13 +556,17 @@ app.post('/api/products/:productId/suppliers', async (req, res) => {
         
         console.log(`Created new supplier: ${newSupplier.name} with ID: ${supplierId}`);
       }
+    } else {
+      return res.status(400).json({ error: 'Either supplierId or name must be provided' });
     }
 
-    // FIX: Ensure consistent string comparison for checking existing relationships
+    // Get product name from either the product or the supplier data
+    const productName = product?.title || supplierData.productName || 'Unknown Product';
+
     // Check if this relationship already exists
     const existingRelationship = db.data.productSuppliers.find(ps => 
       String(ps.productId) === stringProductId && 
-      (ps.supplierId === supplierId || ps.name === supplierName)
+      ps.supplierId === supplierId
     );
     
     if (existingRelationship) {
@@ -544,10 +579,7 @@ app.post('/api/products/:productId/suppliers', async (req, res) => {
       console.log(`Updated existing relationship: ${existingRelationship.id}`);
       
       await db.write();
-      return res.json({
-        message: 'Supplier relationship updated',
-        relationship: existingRelationship
-      });
+      return res.json(existingRelationship);
     }
 
     // Create new product-supplier relationship
@@ -557,19 +589,13 @@ app.post('/api/products/:productId/suppliers', async (req, res) => {
       supplierId: supplierId,
       name: supplierName, // Keep name for backward compatibility
       supplierName: supplierName,
+      productName: productName,
       priority: parseInt(supplierData.priority) || 1,
       price: parseFloat(supplierData.price),
       stockLevel: parseInt(supplierData.stockLevel) || 0,
       createdAt: new Date().toISOString()
     };
     
-    // Add product name if available
-    if (product) {
-      newRelationship.productName = product.title;
-    } else if (supplierData.productName) {
-      newRelationship.productName = supplierData.productName;
-    }
-
     console.log(`Creating new relationship with ID: ${newRelationship.id} for product: ${stringProductId} and supplier: ${supplierName}`);
     
     // Save to database
@@ -586,22 +612,29 @@ app.post('/api/products/:productId/suppliers', async (req, res) => {
     res.status(500).json({ error: 'Error adding supplier', message: error.message });
   }
 });
-
-// PATCH to update a product-supplier relationship (e.g., stock level)
+// PATCH route to update supplier stock or other properties
 app.patch('/api/products/:productId/suppliers/:relationshipId', async (req, res) => {
   try {
     const { productId, relationshipId } = req.params;
     const updateData = req.body;
     
+    console.log(`PATCH /api/products/${productId}/suppliers/${relationshipId} - data:`, updateData);
+    
     const db = await getDB();
     await db.read();
     
+    // FIX: Ensure consistent string comparison for IDs
+    const stringProductId = String(productId);
+    const stringRelationshipId = String(relationshipId);
+    
     // Find relationship
     const relationship = db.data.productSuppliers.find(ps => 
-      ps.id === relationshipId && String(ps.productId) === String(productId)
+      String(ps.id) === stringRelationshipId && 
+      String(ps.productId) === stringProductId
     );
     
     if (!relationship) {
+      console.error(`Relationship not found: ProductID=${stringProductId}, RelationshipID=${stringRelationshipId}`);
       return res.status(404).json({ error: 'Relationship not found' });
     }
     
