@@ -1,59 +1,44 @@
-import shopify from '../../config/shopify.js';
+// src/middleware/auth.js
+import { verifyAppToken } from '../auth/shopifyAuth.js';
 import { Session } from '../models/session.js';
 
-export const verifyRequest = async (req, res, next) => {
+// Middleware to verify authentication
+export const verifyAuth = async (req, res, next) => {
   try {
-    // Get shop from query or session
-    const shop = req.query.shop || req.session?.shop;
+    // Check for token in cookies or headers
+    const token = req.cookies.appToken || req.headers.authorization?.replace('Bearer ', '');
     
-    if (!shop) {
-      return res.status(401).send('Unauthorized - No shop found');
+    if (!token) {
+      return res.status(401).json({ error: 'Authentication required' });
     }
-
-    // Find session in database
+    
+    // Verify token
+    const decoded = verifyAppToken(token);
+    if (!decoded) {
+      return res.status(401).json({ error: 'Invalid token' });
+    }
+    
+    // Check if session exists in database
     const session = await Session.findOne({
-      shop,
+      shop: decoded.shop,
       accessToken: { $exists: true },
       expires: { $gt: new Date() }
     });
-
+    
     if (!session) {
-      // Redirect to auth if no valid session
-      return res.redirect(`/auth?shop=${shop}`);
+      return res.status(401).json({ error: 'Session expired' });
     }
-
-    // Add session to request
-    req.shopifySession = {
-      shop: session.shop,
-      accessToken: session.accessToken,
-      scope: session.scope
+    
+    // Add user info to request object
+    req.user = {
+      shop: decoded.shop,
+      userId: decoded.userId,
+      sessionId: session.id
     };
-
+    
     next();
   } catch (error) {
     console.error('Auth middleware error:', error);
-    res.status(500).send('Authentication error');
-  }
-};
-
-export const validateHmac = async (req, res, next) => {
-  try {
-    const hmac = req.get('X-Shopify-Hmac-Sha256');
-    const shop = req.get('X-Shopify-Shop-Domain');
-
-    if (!hmac || !shop) {
-      return next();
-    }
-
-    const verified = await shopify.auth.validateHmac(req);
-    if (!verified) {
-      return res.status(401).send('Invalid HMAC');
-    }
-
-    req.shop = shop;
-    next();
-  } catch (error) {
-    console.error('HMAC validation error:', error);
-    res.status(401).send('HMAC validation failed');
+    res.status(401).json({ error: 'Authentication error' });
   }
 };
