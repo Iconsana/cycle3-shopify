@@ -3,33 +3,37 @@ import shopify from '../../config/shopify.js';
 
 const router = express.Router();
 
-// Simple in-memory session store (replace with database later)
+// Simple memory storage for sessions
 const sessions = {};
 
-// Handle the initial login page
+// Serve login page
 router.get('/login.html', (req, res) => {
   res.sendFile('login.html', { root: './public' });
 });
 
 // Handle initial authentication request
-router.get('/auth', async (req, res) => {
+router.get('/auth', (req, res) => {
   try {
     const shop = req.query.shop;
     if (!shop) {
-      return res.status(400).send('Missing shop parameter. Please provide a shop name.');
+      return res.status(400).send('Missing shop parameter');
     }
-
-    console.log(`Starting auth flow for shop: ${shop}`);
-
-    // Generate auth URL for Shopify OAuth
-    const authRoute = await shopify.auth.begin({
-      shop,
-      callbackPath: '/auth/callback',
-      isOnline: false,
-    });
-
-    console.log(`Redirecting to Shopify auth: ${authRoute}`);
-    res.redirect(authRoute);
+    
+    console.log(`Auth request for shop: ${shop}`);
+    
+    // Create the authorization URL manually instead of using shopify.auth.begin
+    const nonce = Math.random().toString(36).substring(2, 15);
+    const redirectUri = `${process.env.APP_URL}/auth/callback`;
+    const scopes = 'read_products,write_products,read_orders,write_orders,read_inventory,write_inventory';
+    
+    // Store nonce in session for verification
+    sessions[nonce] = { shop };
+    
+    // Create authorization URL manually
+    const authUrl = `https://${shop}/admin/oauth/authorize?client_id=${process.env.SHOPIFY_API_KEY}&scope=${scopes}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${nonce}`;
+    
+    console.log(`Redirecting to: ${authUrl}`);
+    res.redirect(authUrl);
   } catch (error) {
     console.error('Auth error:', error);
     res.status(500).send(`Authentication error: ${error.message}`);
@@ -39,46 +43,63 @@ router.get('/auth', async (req, res) => {
 // Handle OAuth callback
 router.get('/auth/callback', async (req, res) => {
   try {
-    console.log('Auth callback received from Shopify');
+    const { shop, code, state } = req.query;
     
-    const session = await shopify.auth.callback({
-      rawRequest: req,
-      rawResponse: res
-    });
-
-    if (!session || !session.accessToken) {
-      console.error('Invalid session received from Shopify');
-      return res.status(401).send('Authentication failed - invalid session');
+    console.log(`Auth callback received - Shop: ${shop}, State: ${state}`);
+    
+    // Verify the state matches what we stored (CSRF protection)
+    if (!sessions[state] || sessions[state].shop !== shop) {
+      return res.status(403).send('Invalid state parameter');
     }
-
-    console.log(`Authentication successful for shop: ${session.shop}`);
-
-    // Store session in memory (temporary solution)
-    sessions[session.shop] = {
-      shop: session.shop,
-      accessToken: session.accessToken,
-      scope: session.scope,
-      expires: session.expires,
-      createdAt: new Date()
+    
+    // Exchange the authorization code for an access token
+    const accessTokenUrl = `https://${shop}/admin/oauth/access_token`;
+    const response = await fetch(accessTokenUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        client_id: process.env.SHOPIFY_API_KEY,
+        client_secret: process.env.SHOPIFY_API_SECRET,
+        code
+      })
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Failed to get access token: ${response.statusText}`);
+    }
+    
+    const { access_token } = await response.json();
+    
+    if (!access_token) {
+      throw new Error('No access token received from Shopify');
+    }
+    
+    console.log(`Got access token for shop: ${shop}`);
+    
+    // Store the session
+    sessions[shop] = {
+      shop,
+      accessToken: access_token,
+      createdAt: new Date().toISOString()
     };
-
-    // Set cookie for browser
-    res.cookie('shopify_shop', session.shop, {
+    
+    // Set a cookie to maintain the session client-side
+    res.cookie('shopify_shop', shop, {
       httpOnly: true,
-      secure: true,
-      sameSite: 'None',
       maxAge: 24 * 60 * 60 * 1000 // 24 hours
     });
-
-    // Redirect to app home
+    
+    // Redirect back to the app
     res.redirect('/');
   } catch (error) {
     console.error('Auth callback error:', error);
-    res.status(500).send(`Authentication callback error: ${error.message}`);
+    res.status(500).send(`Authentication error: ${error.message}`);
   }
 });
 
-// Check authentication status
+// Status check endpoint
 router.get('/auth/status', (req, res) => {
   const shop = req.cookies?.shopify_shop;
   
@@ -86,16 +107,9 @@ router.get('/auth/status', (req, res) => {
     return res.json({ authenticated: false });
   }
   
-  // Check if session is expired
-  const session = sessions[shop];
-  if (session.expires && new Date() > new Date(session.expires)) {
-    delete sessions[shop];
-    return res.json({ authenticated: false });
-  }
-  
   return res.json({
     authenticated: true,
-    shop: shop
+    shop
   });
 });
 
