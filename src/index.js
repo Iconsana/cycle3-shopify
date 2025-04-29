@@ -5,6 +5,7 @@ import { fileURLToPath } from 'url';
 import fs from 'fs';
 import webhookRoutes from './routes/webhooks.js';
 import { connectDB } from './database.js';
+import cookieParser from 'cookie-parser';
 import { verifyAuth } from './middleware/auth.js';
 import authRoutes from './routes/auth.js';
 import { registerWebhooks } from './services/webhook-registration.js';
