@@ -51,6 +51,7 @@ console.log('Public directory path:', publicPath);
 // Middleware
 app.use(express.json());
 app.use('/webhooks', webhookRoutes);
+app.use(cookieParser());
 
 // Add auth routes
 app.use('/', authRoutes);
