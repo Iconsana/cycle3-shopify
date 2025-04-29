@@ -134,3 +134,46 @@
                             Sync Products
                         </button>
                     </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- Authentication script - Add this right before the closing </body> tag -->
+<script>
+    // Check authentication status
+    async function checkAuthStatus() {
+        try {
+            const response = await fetch('/auth/status');
+            const data = await response.json();
+            
+            if (!data.authenticated) {
+                // Redirect to auth page if not authenticated
+                const shopParam = new URLSearchParams(window.location.search).get('shop');
+                const shop = shopParam || 'cycle1-test.myshopify.com'; // Default shop
+                window.location.href = `/auth?shop=${shop}`;
+                return false;
+            }
+            
+            console.log('Authentication successful:', data);
+            // Add user info to page if needed
+            if (data.shop) {
+                // You could add user/shop info to the header here
+            }
+            
+            return true;
+        } catch (error) {
+            console.error('Auth check failed:', error);
+            return false;
+        }
+    }
+
+    // Check auth on page load - at the end of existing DOMContentLoaded or add a new one
+    document.addEventListener('DOMContentLoaded', async function() {
+        // Check authentication first
+        await checkAuthStatus();
+        
+        // The rest of your existing DOMContentLoaded code can stay here
+        // It will only run if authentication succeeds
+    });
+</script>
+</body>
