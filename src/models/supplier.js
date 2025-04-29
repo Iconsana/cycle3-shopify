@@ -7,12 +7,8 @@ const supplierSchema = new mongoose.Schema({
   leadTime: { type: Number, default: 0 },
   apiType: { type: String, enum: ['api', 'email'], default: 'email' },
   credentials: { type: mongoose.Schema.Types.Mixed },
-}, { timestamps: true });
-
-// New fields for user association
   shop: { type: String, required: true },
   userId: { type: String },
-  // End new fields
 }, { timestamps: true });
 
 // Compound index for shop + name uniqueness
