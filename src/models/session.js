@@ -43,4 +43,13 @@ sessionSchema.statics.findValidSession = async function(shop) {
   });
 };
 
+// New fields for user association
+  shop: { type: String, required: true },
+  userId: { type: String },
+  // End new fields
+}, { timestamps: true });
+
+// Compound index for shop + name uniqueness
+supplierSchema.index({ shop: 1, name: 1 }, { unique: true });
+
 export const Session = mongoose.models.Session || mongoose.model('Session', sessionSchema);
