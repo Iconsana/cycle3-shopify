@@ -56,10 +56,9 @@ app.use(cookieParser());
 // Add auth routes
 app.use('/', authRoutes);
 
-// Apply auth middleware to protected routes
-app.use('/api/suppliers', verifyAuth, supplierRoutes);
-app.use('/api/products', verifyAuth, productRoutes);
-// Other protected routes...
+// Comment out these lines until you implement them fully
+// app.use('/api/suppliers', verifyAuth, supplierRoutes);
+// app.use('/api/products', verifyAuth, productRoutes);
 
 // Request logging middleware
 app.use((req, res, next) => {
