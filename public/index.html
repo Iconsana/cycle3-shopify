@@ -138,34 +138,24 @@
             </div>
         </div>
     </div>
-    <!-- Authentication script - Add this right before the closing </body> tag -->
-<!-- Authentication script -->
+    <!-- Authentication check -->
 <script>
-  // Check authentication status
-  async function checkAuthStatus() {
+  async function checkAuth() {
     try {
       const response = await fetch('/auth/status');
       const data = await response.json();
       
       if (!data.authenticated) {
-        // Not authenticated, redirect to login
         window.location.href = '/login.html';
-        return false;
       }
-      
-      console.log('Authentication successful:', data);
-      return true;
     } catch (error) {
-      console.error('Auth check failed:', error);
-      return false;
+      console.error('Error checking auth:', error);
+      window.location.href = '/login.html';
     }
   }
-
-  // Add this to your existing onload handlers or DOMContentLoaded
-  document.addEventListener('DOMContentLoaded', async function() {
-    // First check authentication
-    await checkAuthStatus();
-  });
+  
+  // Run the check when the page loads
+  document.addEventListener('DOMContentLoaded', checkAuth);
 </script>
 </body>
 </html>
