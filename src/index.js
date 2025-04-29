@@ -5,6 +5,8 @@ import { fileURLToPath } from 'url';
 import fs from 'fs';
 import webhookRoutes from './routes/webhooks.js';
 import { connectDB } from './database.js';
+import { verifyAuth } from './middleware/auth.js';
+import authRoutes from './routes/auth.js';
 import { registerWebhooks } from './services/webhook-registration.js';
 import shopify from '../config/shopify.js';
 import { 
@@ -49,10 +51,23 @@ console.log('Public directory path:', publicPath);
 app.use(express.json());
 app.use('/webhooks', webhookRoutes);
 
+// Add auth routes
+app.use('/', authRoutes);
+
+// Apply auth middleware to protected routes
+app.use('/api/suppliers', verifyAuth, supplierRoutes);
+app.use('/api/products', verifyAuth, productRoutes);
+// Other protected routes...
+
 // Request logging middleware
 app.use((req, res, next) => {
   console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
   next();
+});
+
+// Public routes that don't need auth
+app.get('/health', (req, res) => {
+  res.status(200).json({ status: 'healthy' });
 });
 
 // Serve static files from public directory - ENSURE THIS COMES BEFORE ROUTES
