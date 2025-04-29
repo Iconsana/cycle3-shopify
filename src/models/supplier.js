@@ -9,4 +9,13 @@ const supplierSchema = new mongoose.Schema({
   credentials: { type: mongoose.Schema.Types.Mixed },
 }, { timestamps: true });
 
+// New fields for user association
+  shop: { type: String, required: true },
+  userId: { type: String },
+  // End new fields
+}, { timestamps: true });
+
+// Compound index for shop + name uniqueness
+supplierSchema.index({ shop: 1, name: 1 }, { unique: true });
+
 export const Supplier = mongoose.models.Supplier || mongoose.model('Supplier', supplierSchema);
