@@ -19,4 +19,13 @@ const purchaseOrderSchema = new mongoose.Schema({
   approvedAt: Date
 }, { timestamps: true });
 
+// New fields for user association
+  shop: { type: String, required: true },
+  userId: { type: String },
+  // End new fields
+}, { timestamps: true });
+
+// Compound index for shop + name uniqueness
+supplierSchema.index({ shop: 1, name: 1 }, { unique: true });
+
 export const PurchaseOrder = mongoose.models.PurchaseOrder || mongoose.model('PurchaseOrder', purchaseOrderSchema);
