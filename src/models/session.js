@@ -8,15 +8,18 @@ const sessionSchema = new mongoose.Schema({
   scope: { type: String },
   accessToken: { type: String },
   expires: { type: Date },
+  userId: { type: String }
 }, { 
-  timestamps: true,
-  // Add indexes for faster queries
-  indexes: [
-    { shop: 1 },
-    { accessToken: 1 },
-    { expires: 1 }
-  ]
+  timestamps: true
 });
+
+// Add indexes for faster queries
+sessionSchema.index({ shop: 1 });
+sessionSchema.index({ accessToken: 1 });
+sessionSchema.index({ expires: 1 });
+
+// Compound index for shop and userId
+sessionSchema.index({ shop: 1, userId: 1 });
 
 // Add method to check if session is valid
 sessionSchema.methods.isValid = function() {
@@ -42,14 +45,5 @@ sessionSchema.statics.findValidSession = async function(shop) {
     expires: { $gt: new Date() }
   });
 };
-
-// New fields for user association
-  shop: { type: String, required: true },
-  userId: { type: String },
-  // End new fields
-}, { timestamps: true });
-
-// Compound index for shop + name uniqueness
-supplierSchema.index({ shop: 1, name: 1 }, { unique: true });
 
 export const Session = mongoose.models.Session || mongoose.model('Session', sessionSchema);
