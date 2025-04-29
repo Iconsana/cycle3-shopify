@@ -14,7 +14,7 @@ const shopify = shopifyApi({
   ],
   hostName: process.env.APP_URL.replace(/https:\/\//, ''),
   apiVersion: LATEST_API_VERSION,
-  isEmbeddedApp: true,
+  isEmbeddedApp: false, // Change to false for standalone app
 });
 
 export default shopify;
