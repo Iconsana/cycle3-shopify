@@ -57,25 +57,33 @@
         </div>
     </div>
 
-    <script>
-        // Test API connection
-        document.getElementById('testConnection').addEventListener('click', async () => {
-            const resultDiv = document.getElementById('connectionResult');
-            resultDiv.classList.remove('hidden');
-            resultDiv.innerText = 'Checking API connection...';
-            resultDiv.className = 'mt-4 p-4 bg-gray-100 rounded';
-            
-            try {
-                const response = await fetch('/test-connection');
-                const data = await response.json();
-                
-                resultDiv.innerText = `Success! API is connected and working properly.\n\nServer time: ${data.time || 'unknown'}`;
-                resultDiv.className = 'mt-4 p-4 bg-green-100 rounded';
-            } catch (error) {
-                resultDiv.innerText = `Error connecting to API: ${error.message}`;
-                resultDiv.className = 'mt-4 p-4 bg-red-100 rounded';
-            }
-        });
-    </script>
+    <!-- Authentication script -->
+<script>
+  // Check authentication status
+  async function checkAuthStatus() {
+    try {
+      const response = await fetch('/auth/status');
+      const data = await response.json();
+      
+      if (!data.authenticated) {
+        // Not authenticated, redirect to login
+        window.location.href = '/login.html';
+        return false;
+      }
+      
+      console.log('Authentication successful:', data);
+      return true;
+    } catch (error) {
+      console.error('Auth check failed:', error);
+      return false;
+    }
+  }
+
+  // Add this to your existing onload handlers or DOMContentLoaded
+  document.addEventListener('DOMContentLoaded', async function() {
+    // First check authentication
+    await checkAuthStatus();
+  });
+</script>
 </body>
 </html>
