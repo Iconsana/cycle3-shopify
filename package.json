@@ -20,7 +20,9 @@
     "@shopify/admin-ui-extensions": "^1.0.0",
     "node-fetch": "^3.3.2",
     "mongoose": "^8.1.0",
-    "lowdb": "^6.0.1"
+    "lowdb": "^6.0.1",
+    "cookie-parser": "^1.4.6",
+"jsonwebtoken": "^9.0.2"
   },
   "devDependencies": {
     "nodemon": "^3.0.2"
