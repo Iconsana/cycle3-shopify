@@ -193,6 +193,48 @@ app.get('/health', (req, res) => {
 // Define paths properly
 // const publicPath = path.join(__dirname, '..', 'public');
 
+// Add these routes after your existing app.use statements
+// but before the static file serving middleware
+app.use('/api/quotes', quoteProcessingRoutes);
+
+// Add these routes for the quote processing UI pages
+app.get('/quotes', (req, res) => {
+  sendFileWithNav(res, path.join(publicPath, 'quotes/index.html'));
+});
+
+app.get('/quotes/upload', (req, res) => {
+  sendFileWithNav(res, path.join(publicPath, 'quotes/upload.html'));
+});
+
+app.get('/quotes/:quoteId', (req, res) => {
+  sendFileWithNav(res, path.join(publicPath, 'quotes/view.html'));
+});
+
+// Create directory structure for quote processing UI
+// Add this to your initializeDatabase function
+const quotesDir = path.join(publicPath, 'quotes');
+if (!fs.existsSync(quotesDir)) {
+  try {
+    fs.mkdirSync(quotesDir, { recursive: true });
+  } catch (err) {
+    console.error('Error creating quotes directory:', err);
+  }
+}
+
+// Create uploads directory for quote files
+const uploadsDir = path.join(__dirname, '../uploads');
+if (!fs.existsSync(uploadsDir)) {
+  try {
+    fs.mkdirSync(uploadsDir, { recursive: true });
+  } catch (err) {
+    console.error('Error creating uploads directory:', err);
+  }
+}
+
+// Add to package.json dependencies
+// "multer": "^1.4.5-lts.1",
+// "tesseract.js": "^4.1.1",
+
 // Serve static files from public directory
 app.use(express.static(publicPath));
 
