@@ -3,6 +3,7 @@ import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
+import quoteProcessingRoutes from './routes/quote-processing.js';
 import webhookRoutes from './routes/webhooks.js';
 import { connectDB } from './database.js';
 import cookieParser from 'cookie-parser';
@@ -197,6 +198,21 @@ app.get('/health', (req, res) => {
 // but before the static file serving middleware
 app.use('/api/quotes', quoteProcessingRoutes);
 
+app.use('/api/quotes', quoteProcessingRoutes);
+
+// Add these routes for the quote processing UI pages
+app.get('/quotes', (req, res) => {
+  sendFileWithNav(res, path.join(publicPath, 'quotes/index.html'));
+});
+
+app.get('/quotes/upload', (req, res) => {
+  sendFileWithNav(res, path.join(publicPath, 'quotes/upload.html'));
+});
+
+app.get('/quotes/:quoteId', (req, res) => {
+  sendFileWithNav(res, path.join(publicPath, 'quotes/view.html'));
+});
+
 // Add these routes for the quote processing UI pages
 app.get('/quotes', (req, res) => {
   sendFileWithNav(res, path.join(publicPath, 'quotes/index.html'));
@@ -219,6 +235,25 @@ if (!fs.existsSync(quotesDir)) {
   } catch (err) {
     console.error('Error creating quotes directory:', err);
   }
+  // Create directory structure for quote processing UI
+const quotesDir = path.join(publicPath, 'quotes');
+if (!fs.existsSync(quotesDir)) {
+  try {
+    fs.mkdirSync(quotesDir, { recursive: true });
+  } catch (err) {
+    console.error('Error creating quotes directory:', err);
+  }
+}
+
+// Create uploads directory for quote files
+const uploadsDir = path.join(__dirname, '../uploads');
+if (!fs.existsSync(uploadsDir)) {
+  try {
+    fs.mkdirSync(uploadsDir, { recursive: true });
+  } catch (err) {
+    console.error('Error creating uploads directory:', err);
+  }
+}
 }
 
 // Create uploads directory for quote files
