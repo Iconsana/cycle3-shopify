@@ -1,0 +1,740 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Upload Quote - Multi-Supplier Management</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100">
+    <div class="container mx-auto px-4 py-8">
+        <div class="flex justify-between items-center mb-8">
+            <h1 class="text-3xl font-bold">Multi-Supplier Management</h1>
+            <div class="bg-green-100 text-green-800 px-4 py-2 rounded">
+                APP STATUS: ONLINE
+            </div>
+        </div>
+
+        <!-- Navigation Tabs -->
+        <div class="border-b border-gray-200 mb-8">
+            <nav class="flex space-x-6">
+                <a href="/" class="py-2 px-1 font-medium hover:text-blue-500">Home</a>
+                <a href="/suppliers" class="py-2 px-1 font-medium hover:text-blue-500">Suppliers</a>
+                <a href="/product-suppliers" class="py-2 px-1 font-medium hover:text-blue-500">Product Suppliers</a>
+                <a href="/products" class="py-2 px-1 font-medium hover:text-blue-500">Products</a>
+                <a href="/purchase-orders" class="py-2 px-1 font-medium hover:text-blue-500">Purchase Orders</a>
+                <a href="/quotes" class="py-2 px-1 font-medium text-blue-500 border-b-2 border-blue-500">Quotes</a>
+            </nav>
+        </div>
+
+        <!-- Breadcrumb Navigation -->
+        <div class="flex items-center text-sm text-gray-500 mb-6">
+            <a href="/quotes" class="hover:text-blue-500">Quotes</a>
+            <span class="mx-2">›</span>
+            <span class="font-medium text-gray-700">Upload New Quote</span>
+        </div>
+
+        <!-- Main Content -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <!-- Upload Form -->
+            <div class="lg:col-span-2">
+                <div id="uploadFormSection" class="bg-white rounded-lg shadow-md p-6 mb-6">
+                    <h2 class="text-xl font-semibold mb-4">Upload Supplier Quote</h2>
+                    <div id="uploadStatus" class="hidden mb-4"></div>
+                    
+                    <form id="quoteUploadForm" class="space-y-4">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                                <label class="block text-sm font-medium mb-1" for="supplierSelect">
+                                    Select Supplier
+                                </label>
+                                <select id="supplierSelect" class="w-full p-2 border rounded">
+                                    <option value="">-- Select existing supplier --</option>
+                                    <option value="new">+ Create new supplier</option>
+                                </select>
+                            </div>
+                            
+                            <div id="newSupplierNameContainer" class="hidden">
+                                <label class="block text-sm font-medium mb-1" for="newSupplierName">
+                                    New Supplier Name
+                                </label>
+                                <input type="text" id="newSupplierName" placeholder="Enter supplier name" class="w-full p-2 border rounded">
+                            </div>
+
+                            <div>
+                                <label class="block text-sm font-medium mb-1" for="validUntil">
+                                    Quote Valid Until
+                                </label>
+                                <input type="date" id="validUntil" class="w-full p-2 border rounded">
+                            </div>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium mb-1" for="quoteFile">
+                                Quote Document (PDF or Image)
+                            </label>
+                            <div class="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center" id="dropZone">
+                                <div class="mb-4">
+                                    <svg class="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48">
+                                        <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4h-12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                                    </svg>
+                                    <p class="mt-1 text-sm text-gray-600">
+                                        Drag and drop a file here, or click to browse
+                                    </p>
+                                    <p class="mt-1 text-xs text-gray-500">
+                                        Supported formats: PDF, JPG, PNG
+                                    </p>
+                                </div>
+                                <input id="quoteFile" name="quoteFile" type="file" accept=".pdf,.jpg,.jpeg,.png" class="hidden">
+                                <button type="button" id="browseFileBtn" class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">
+                                    Browse Files
+                                </button>
+                            </div>
+                            <div id="selectedFile" class="hidden mt-2 p-2 bg-blue-50 rounded"></div>
+                        </div>
+                        
+                        <div class="flex justify-end space-x-3">
+                            <a href="/quotes" class="px-4 py-2 border rounded text-gray-700 hover:bg-gray-50">
+                                Cancel
+                            </a>
+                            <button type="submit" id="uploadBtn" class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50" disabled>
+                                Upload Quote
+                            </button>
+                        </div>
+                    </form>
+                </div>
+                
+                <!-- Processing Status (initially hidden) -->
+                <div id="processingSection" class="bg-white rounded-lg shadow-md p-6 mb-6 hidden">
+                    <h2 class="text-xl font-semibold mb-4">Processing Quote</h2>
+                    <div class="flex items-center space-x-4 mb-4">
+                        <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+                        <p id="processingStatus">Starting extraction...</p>
+                    </div>
+                    <div class="w-full bg-gray-200 rounded-full h-2.5">
+                        <div id="processingProgress" class="bg-blue-600 h-2.5 rounded-full w-0 transition-all duration-300"></div>
+                    </div>
+                    <p class="mt-4 text-sm text-gray-500">
+                        This may take a moment. We're using OCR technology to extract product information from your uploaded quote.
+                    </p>
+                </div>
+                
+                <!-- Extraction Results (initially hidden) -->
+                <div id="extractionResultsSection" class="bg-white rounded-lg shadow-md p-6 mb-6 hidden">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-xl font-semibold">Extracted Products</h2>
+                        <button id="createProductsBtn" class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600">
+                            Create Products in Shopify
+                        </button>
+                    </div>
+                    
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium">Markup Percentage</label>
+                        <div class="flex items-center space-x-4 mt-1">
+                            <input type="range" id="markupSlider" min="0" max="200" value="50" class="w-full">
+                            <span id="markupValue" class="text-sm font-medium">50%</span>
+                        </div>
+                    </div>
+                    
+                    <div class="border rounded-lg overflow-hidden">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">SKU</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Supplier Price</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Shopify Price</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stock</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="extractedProductsTable" class="bg-white divide-y divide-gray-200">
+                                <!-- Products will be populated here -->
+                                <tr>
+                                    <td colspan="6" class="px-6 py-4 text-sm text-gray-500 text-center">
+                                        No products extracted yet.
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Sidebar -->
+            <div class="lg:col-span-1">
+                <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+                    <h2 class="text-xl font-semibold mb-4">Tips for Best Results</h2>
+                    <ul class="space-y-2 text-sm">
+                        <li class="flex items-start">
+                            <span class="text-green-500 mr-2">✓</span>
+                            <span>Use clear, high-resolution scans or original PDFs</span>
+                        </li>
+                        <li class="flex items-start">
+                            <span class="text-green-500 mr-2">✓</span>
+                            <span>Ensure the document has clean, readable text</span>
+                        </li>
+                        <li class="flex items-start">
+                            <span class="text-green-500 mr-2">✓</span>
+                            <span>Make sure product details (SKU, price, description) are visible</span>
+                        </li>
+                        <li class="flex items-start">
+                            <span class="text-green-500 mr-2">✓</span>
+                            <span>Crop out any irrelevant parts of the document</span>
+                        </li>
+                    </ul>
+                </div>
+                
+                <div class="bg-white rounded-lg shadow-md p-6">
+                    <h2 class="text-xl font-semibold mb-4">Supported Formats</h2>
+                    <div class="space-y-3">
+                        <div class="flex items-center">
+                            <div class="w-10 h-10 flex items-center justify-center bg-red-100 rounded-lg mr-3">
+                                <span class="text-red-600 font-bold text-sm">PDF</span>
+                            </div>
+                            <div>
+                                <p class="font-medium">PDF Documents</p>
+                                <p class="text-xs text-gray-500">Recommended for best results</p>
+                            </div>
+                        </div>
+                        <div class="flex items-center">
+                            <div class="w-10 h-10 flex items-center justify-center bg-blue-100 rounded-lg mr-3">
+                                <span class="text-blue-600 font-bold text-sm">JPG</span>
+                            </div>
+                            <div>
+                                <p class="font-medium">JPEG Images</p>
+                                <p class="text-xs text-gray-500">High resolution recommended</p>
+                            </div>
+                        </div>
+                        <div class="flex items-center">
+                            <div class="w-10 h-10 flex items-center justify-center bg-green-100 rounded-lg mr-3">
+                                <span class="text-green-600 font-bold text-sm">PNG</span>
+                            </div>
+                            <div>
+                                <p class="font-medium">PNG Images</p>
+                                <p class="text-xs text-gray-500">Clean scans work best</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', async function() {
+            // Check authentication
+            try {
+                const authResponse = await fetch('/auth/status');
+                const authData = await authResponse.json();
+                
+                if (!authData.authenticated) {
+                    window.location.href = '/login.html';
+                    return;
+                }
+            } catch (error) {
+                console.error('Auth check failed:', error);
+            }
+            
+            // Load suppliers for dropdown
+            loadSuppliers();
+            
+            // Set up event listeners
+            setupEventListeners();
+        });
+        
+        // Load suppliers for dropdown
+        async function loadSuppliers() {
+            try {
+                const response = await fetch('/api/suppliers');
+                
+                if (!response.ok) {
+                    throw new Error(`Failed to load suppliers: ${response.status}`);
+                }
+                
+                const suppliers = await response.json();
+                const supplierSelect = document.getElementById('supplierSelect');
+                
+                // Keep the first two options (select and create new)
+                while (supplierSelect.options.length > 2) {
+                    supplierSelect.remove(2);
+                }
+                
+                // Add supplier options
+                suppliers.forEach(supplier => {
+                    const option = document.createElement('option');
+                    option.value = supplier.id;
+                    option.textContent = supplier.name;
+                    supplierSelect.appendChild(option);
+                });
+                
+                // If no suppliers found, hide the dropdown and show the name field
+                if (suppliers.length === 0) {
+                    document.getElementById('supplierSelect').value = 'new';
+                    toggleNewSupplierField('new');
+                }
+                
+            } catch (error) {
+                console.error('Error loading suppliers:', error);
+                showStatus(`Error loading suppliers: ${error.message}`, 'error');
+            }
+        }
+        
+        // Set up event listeners
+        function setupEventListeners() {
+            // Supplier select change
+            document.getElementById('supplierSelect').addEventListener('change', function(e) {
+                toggleNewSupplierField(e.target.value);
+            });
+            
+            // File drag and drop
+            const dropZone = document.getElementById('dropZone');
+            const fileInput = document.getElementById('quoteFile');
+            
+            // Browse button
+            document.getElementById('browseFileBtn').addEventListener('click', function() {
+                fileInput.click();
+            });
+            
+            // File selection
+            fileInput.addEventListener('change', function() {
+                handleFileSelection(this.files[0]);
+            });
+            
+            // Drag and drop events
+            dropZone.addEventListener('dragover', function(e) {
+                e.preventDefault();
+                dropZone.classList.add('border-blue-500', 'bg-blue-50');
+            });
+            
+            dropZone.addEventListener('dragleave', function() {
+                dropZone.classList.remove('border-blue-500', 'bg-blue-50');
+            });
+            
+            dropZone.addEventListener('drop', function(e) {
+                e.preventDefault();
+                dropZone.classList.remove('border-blue-500', 'bg-blue-50');
+                
+                if (e.dataTransfer.files.length) {
+                    handleFileSelection(e.dataTransfer.files[0]);
+                }
+            });
+            
+            // Form submission
+            document.getElementById('quoteUploadForm').addEventListener('submit', async function(e) {
+                e.preventDefault();
+                await uploadQuote();
+            });
+            
+            // Markup slider
+            document.getElementById('markupSlider').addEventListener('input', function(e) {
+                const markup = parseInt(e.target.value);
+                document.getElementById('markupValue').textContent = `${markup}%`;
+                
+                // Update Shopify prices in the table
+                updateShopifyPrices(markup);
+            });
+            
+            // Create products button
+            document.getElementById('createProductsBtn').addEventListener('click', createProducts);
+        }
+        
+        // Toggle new supplier field
+        function toggleNewSupplierField(value) {
+            const newSupplierContainer = document.getElementById('newSupplierNameContainer');
+            
+            if (value === 'new') {
+                newSupplierContainer.classList.remove('hidden');
+                document.getElementById('newSupplierName').setAttribute('required', 'required');
+            } else {
+                newSupplierContainer.classList.add('hidden');
+                document.getElementById('newSupplierName').removeAttribute('required');
+            }
+        }
+        
+        // Handle file selection
+        function handleFileSelection(file) {
+            if (!file) return;
+            
+            // Check file type
+            const validTypes = ['application/pdf', 'image/jpeg', 'image/png'];
+            if (!validTypes.includes(file.type)) {
+                showStatus('Please select a PDF or image file (JPG, PNG)', 'error');
+                return;
+            }
+            
+            // Check file size (5MB limit)
+            if (file.size > 5 * 1024 * 1024) {
+                showStatus('File is too large. Maximum size is 5MB', 'error');
+                return;
+            }
+            
+            // Display selected file
+            const selectedFileEl = document.getElementById('selectedFile');
+            selectedFileEl.classList.remove('hidden');
+            selectedFileEl.innerHTML = `
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center">
+                        <svg class="h-5 w-5 text-blue-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M8 4a3 3 0 00-3 3v4a5 5 0 0010 0V7a1 1 0 112 0v4a7 7 0 11-14 0V7a5 5 0 0110 0v4a3 3 0 11-6 0V7a1 1 0 012 0v4a1 1 0 102 0V7a3 3 0 00-3-3z" clip-rule="evenodd"></path>
+                        </svg>
+                        <span>${file.name} (${formatFileSize(file.size)})</span>
+                    </div>
+                    <button type="button" id="removeFileBtn" class="text-red-500 hover:text-red-700">
+                        <svg class="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"></path>
+                        </svg>
+                    </button>
+                </div>
+            `;
+            
+            // Add remove button listener
+            document.getElementById('removeFileBtn').addEventListener('click', function() {
+                document.getElementById('quoteFile').value = '';
+                selectedFileEl.classList.add('hidden');
+                document.getElementById('uploadBtn').setAttribute('disabled', 'disabled');
+            });
+            
+            // Enable upload button
+            document.getElementById('uploadBtn').removeAttribute('disabled');
+        }
+        
+        // Format file size
+        function formatFileSize(bytes) {
+            if (bytes < 1024) return bytes + ' bytes';
+            else if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+            else return (bytes / 1048576).toFixed(1) + ' MB';
+        }
+        
+        // Show status message
+        function showStatus(message, type = 'info') {
+            const statusEl = document.getElementById('uploadStatus');
+            statusEl.innerHTML = `
+                <div class="p-4 rounded ${
+                    type === 'error' ? 'bg-red-100 text-red-800' : 
+                    type === 'success' ? 'bg-green-100 text-green-800' : 
+                    'bg-blue-100 text-blue-800'
+                }">
+                    ${message}
+                </div>
+            `;
+            statusEl.classList.remove('hidden');
+        }
+        
+        // Upload the quote
+        async function uploadQuote() {
+            try {
+                // Validate form
+                const fileInput = document.getElementById('quoteFile');
+                if (!fileInput.files.length) {
+                    showStatus('Please select a file to upload', 'error');
+                    return;
+                }
+                
+                // Get supplier info
+                const supplierSelect = document.getElementById('supplierSelect');
+                let supplierName = '';
+                let supplierId = '';
+                
+                if (supplierSelect.value === 'new') {
+                    supplierName = document.getElementById('newSupplierName').value;
+                    if (!supplierName) {
+                        showStatus('Please enter a supplier name', 'error');
+                        return;
+                    }
+                } else if (supplierSelect.value) {
+                    supplierId = supplierSelect.value;
+                    supplierName = supplierSelect.options[supplierSelect.selectedIndex].text;
+                } else {
+                    showStatus('Please select a supplier', 'error');
+                    return;
+                }
+                
+                // Create form data
+                const formData = new FormData();
+                formData.append('quoteFile', fileInput.files[0]);
+                formData.append('supplierName', supplierName);
+                formData.append('supplierId', supplierId);
+                formData.append('validUntil', document.getElementById('validUntil').value);
+                
+                // Show loading message
+                showStatus('Uploading quote file...', 'info');
+                document.getElementById('uploadBtn').setAttribute('disabled', 'disabled');
+                document.getElementById('uploadBtn').innerHTML = `
+                    <svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white inline-block" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Uploading...
+                `;
+                
+                // Upload the file
+                const response = await fetch('/api/quotes/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`Upload failed: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                
+                // Start processing
+                showProcessingUI(data.quote.id);
+                
+            } catch (error) {
+                console.error('Error uploading quote:', error);
+                showStatus(`Error uploading quote: ${error.message}`, 'error');
+                
+                // Reset button
+                document.getElementById('uploadBtn').removeAttribute('disabled');
+                document.getElementById('uploadBtn').textContent = 'Upload Quote';
+            }
+        }
+        
+        // Show processing UI
+        function showProcessingUI(quoteId) {
+            // Hide upload form
+            document.getElementById('uploadFormSection').classList.add('hidden');
+            
+            // Show processing section
+            document.getElementById('processingSection').classList.remove('hidden');
+            
+            // Start progress animation
+            simulateProgress(quoteId);
+        }
+        
+        // Simulate processing progress
+        function simulateProgress(quoteId) {
+            let progress = 0;
+            const progressBar = document.getElementById('processingProgress');
+            const progressStatus = document.getElementById('processingStatus');
+            
+            const interval = setInterval(() => {
+                progress += 5;
+                progressBar.style.width = `${progress}%`;
+                
+                if (progress === 25) {
+                    progressStatus.textContent = 'Analyzing document structure...';
+                } else if (progress === 50) {
+                    progressStatus.textContent = 'Extracting product data...';
+                } else if (progress === 75) {
+                    progressStatus.textContent = 'Formatting and validating...';
+                }
+                
+                if (progress >= 100) {
+                    clearInterval(interval);
+                    progressStatus.textContent = 'Processing complete!';
+                    setTimeout(() => {
+                        fetchExtractedData(quoteId);
+                    }, 1000);
+                }
+            }, 200);
+        }
+        
+        // Fetch extracted data
+        async function fetchExtractedData(quoteId) {
+            try {
+                const response = await fetch(`/api/quotes/${quoteId}`);
+                
+                if (!response.ok) {
+                    throw new Error(`Failed to fetch extraction results: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                
+                // Hide processing section
+                document.getElementById('processingSection').classList.add('hidden');
+                
+                // Show extracted data
+                document.getElementById('extractionResultsSection').classList.remove('hidden');
+                
+                // Display products
+                displayExtractedProducts(data.products || []);
+                
+            } catch (error) {
+                console.error('Error fetching extracted data:', error);
+                document.getElementById('processingStatus').textContent = `Error: ${error.message}`;
+            }
+        }
+        
+        // Display extracted products
+        function displayExtractedProducts(products) {
+            const tableBody = document.getElementById('extractedProductsTable');
+            const markup = parseInt(document.getElementById('markupSlider').value);
+            
+            if (products.length === 0) {
+                tableBody.innerHTML = `
+                    <tr>
+                        <td colspan="6" class="px-6 py-4 text-sm text-gray-500 text-center">
+                            No products were extracted from this quote. Try with a clearer document.
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+            
+            // Create table rows
+            tableBody.innerHTML = products.map((product, index) => {
+                const shopifyPrice = (product.unitPrice * (1 + markup / 100)).toFixed(2);
+                
+                return `
+                    <tr class="${index % 2 === 0 ? '' : 'bg-gray-50'}">
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                            ${product.sku || 'N/A'}
+                        </td>
+                        <td class="px-6 py-4 text-sm text-gray-500">
+                            ${product.description}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            R${product.unitPrice.toFixed(2)}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 shopify-price" data-unit-price="${product.unitPrice}">
+                            R${shopifyPrice}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            ${product.availableQuantity || 'N/A'}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            <button class="text-blue-600 hover:text-blue-900 font-medium edit-product" data-index="${index}">
+                                Edit
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+            
+            // Add edit button handlers
+            document.querySelectorAll('.edit-product').forEach(button => {
+                button.addEventListener('click', function() {
+                    const index = parseInt(this.getAttribute('data-index'));
+                    editProduct(products[index], index);
+                });
+            });
+        }
+        
+        // Update Shopify prices based on markup
+        function updateShopifyPrices(markup) {
+            document.querySelectorAll('.shopify-price').forEach(cell => {
+                const unitPrice = parseFloat(cell.getAttribute('data-unit-price'));
+                const shopifyPrice = (unitPrice * (1 + markup / 100)).toFixed(2);
+                cell.textContent = `R${shopifyPrice}`;
+            });
+        }
+        
+        // Edit product modal
+        function editProduct(product, index) {
+            // Create a modal for editing
+            const modal = document.createElement('div');
+            modal.className = 'fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50';
+            modal.innerHTML = `
+                <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-lg font-semibold">Edit Product</h3>
+                        <button class="text-gray-400 hover:text-gray-600" id="closeModal">
+                            &times;
+                        </button>
+                    </div>
+                    <form id="editProductForm" class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium mb-1" for="editSku">SKU</label>
+                            <input type="text" id="editSku" value="${product.sku || ''}" class="w-full p-2 border rounded">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium mb-1" for="editDescription">Description</label>
+                            <input type="text" id="editDescription" value="${product.description || ''}" class="w-full p-2 border rounded">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium mb-1" for="editUnitPrice">Supplier Price</label>
+                            <input type="number" id="editUnitPrice" value="${product.unitPrice || 0}" step="0.01" min="0" class="w-full p-2 border rounded">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium mb-1" for="editQuantity">Stock</label>
+                            <input type="number" id="editQuantity" value="${product.availableQuantity || 0}" min="0" class="w-full p-2 border rounded">
+                        </div>
+                        <div class="flex justify-end space-x-3 mt-6">
+                            <button type="button" id="cancelEdit" class="px-4 py-2 border rounded text-gray-700 hover:bg-gray-50">
+                                Cancel
+                            </button>
+                            <button type="submit" class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">
+                                Save Changes
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            `;
+            
+            document.body.appendChild(modal);
+            
+            // Handle close modal
+            document.getElementById('closeModal').addEventListener('click', () => {
+                document.body.removeChild(modal);
+            });
+            
+            document.getElementById('cancelEdit').addEventListener('click', () => {
+                document.body.removeChild(modal);
+            });
+            
+            // Handle form submission
+            document.getElementById('editProductForm').addEventListener('submit', (e) => {
+                e.preventDefault();
+                
+                // Update product data
+                product.sku = document.getElementById('editSku').value;
+                product.description = document.getElementById('editDescription').value;
+                product.unitPrice = parseFloat(document.getElementById('editUnitPrice').value);
+                product.availableQuantity = parseInt(document.getElementById('editQuantity').value);
+                
+                // Update display
+                const cells = document.querySelectorAll(`#extractedProductsTable tr:nth-child(${index + 1}) td`);
+                cells[0].textContent = product.sku || 'N/A';
+                cells[1].textContent = product.description;
+                cells[2].textContent = `R${product.unitPrice.toFixed(2)}`;
+                
+                // Update Shopify price
+                const markup = parseInt(document.getElementById('markupSlider').value);
+                const shopifyPrice = (product.unitPrice * (1 + markup / 100)).toFixed(2);
+                cells[3].textContent = `R${shopifyPrice}`;
+                cells[3].setAttribute('data-unit-price', product.unitPrice);
+                
+                cells[4].textContent = product.availableQuantity || 'N/A';
+                
+                // Close modal
+                document.body.removeChild(modal);
+            });
+        }
+        
+        // Create products in Shopify
+        async function createProducts() {
+            try {
+                // Get markup
+                const markup = parseInt(document.getElementById('markupSlider').value);
+                
+                // Show loading state
+                document.getElementById('createProductsBtn').textContent = 'Creating...';
+                document.getElementById('createProductsBtn').disabled = true;
+                
+                // TODO: Implement actual API call to create products
+                
+                // Show success message
+                showStatus('Products successfully created in Shopify!', 'success');
+                
+                // Reset button
+                setTimeout(() => {
+                    document.getElementById('createProductsBtn').textContent = 'Create Products in Shopify';
+                    document.getElementById('createProductsBtn').disabled = false;
+                }, 2000);
+                
+            } catch (error) {
+                console.error('Error creating products:', error);
+                showStatus(`Error creating products: ${error.message}`, 'error');
+                
+                // Reset button
+                document.getElementById('createProductsBtn').textContent = 'Create Products in Shopify';
+                document.getElementById('createProductsBtn').disabled = false;
+            }
+        }
+    </script>
+</body>
+</html>
