@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quote Processing - Multi-Supplier Management</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100">
+    <div class="container mx-auto px-4 py-8">
+        <div class="flex justify-between items-center mb-8">
+            <h1 class="text-3xl font-bold">Multi-Supplier Management</h1>
+            <div class="bg-green-100 text-green-800 px-4 py-2 rounded">
+                APP STATUS: ONLINE
+            </div>
+        </div>
+
+        <!-- Navigation Tabs -->
+        <div class="border-b border-gray-200 mb-8">
+            <nav class="flex space-x-6">
+                <a href="/" class="py-2 px-1 font-medium hover:text-blue-500">Home</a>
+                <a href="/suppliers" class="py-2 px-1 font-medium hover:text-blue-500">Suppliers</a>
+                <a href="/product-suppliers" class="py-2 px-1 font-medium hover:text-blue-500">Product Suppliers</a>
+                <a href="/products" class="py-2 px-1 font-medium hover:text-blue-500">Products</a>
+                <a href="/purchase-orders" class="py-2 px-1 font-medium hover:text-blue-500">Purchase Orders</a>
+                <a href="/quotes" class="py-2 px-1 font-medium text-blue-500 border-b-2 border-blue-500">Quotes</a>
+            </nav>
+        </div>
+
+        <!-- Main Content -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+            <!-- Left Sidebar -->
+            <div class="md:col-span-1">
+                <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+                    <h2 class="text-xl font-semibold mb-4">Quote Actions</h2>
+                    <div class="space-y-3">
+                        <a href="/quotes/upload" class="block w-full bg-blue-500 text-white text-center py-3 rounded-lg hover:bg-blue-600 transition">
+                            Upload New Quote
+                        </a>
+                        <a href="/suppliers" class="block w-full bg-gray-500 text-white text-center py-3 rounded-lg hover:bg-gray-600 transition">
+                            Manage Suppliers
+                        </a>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-lg shadow-md p-6">
+                    <h2 class="text-xl font-semibold mb-4">Quote Status</h2>
+                    <div class="space-y-2">
+                        <div class="flex justify-between items-center text-sm">
+                            <span>Processed Quotes:</span>
+                            <span id="processedCount" class="font-semibold">0</span>
+                        </div>
+                        <div class="flex justify-between items-center text-sm">
+                            <span>Products Created:</span>
+                            <span id="productsCount" class="font-semibold">0</span>
+                        </div>
+                        <div class="flex justify-between items-center text-sm">
+                            <span>Active Suppliers:</span>
+                            <span id="suppliersCount" class="font-semibold">0</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Main Content Area -->
+            <div class="md:col-span-3">
+                <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-xl font-semibold">Recent Quotes</h2>
+                        <a href="/quotes/upload" class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600">
+                            + New Quote
+                        </a>
+                    </div>
+
+                    <!-- Search & Filter -->
+                    <div class="flex space-x-2 mb-6">
+                        <div class="flex-1">
+                            <input type="text" id="searchQuotes" placeholder="Search quotes..." class="w-full p-2 border rounded">
+                        </div>
+                        <div>
+                            <select id="filterStatus" class="p-2 border rounded">
+                                <option value="all">All Status</option>
+                                <option value="processed">Processed</option>
+                                <option value="pending">Pending</option>
+                                <option value="error">Error</option>
+                            </select>
+                        </div>
+                        <button id="searchBtn" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
+                            Search
+                        </button>
+                    </div>
+
+                    <!-- Quotes List -->
+                    <div id="quotesList" class="space-y-4">
+                        <!-- Quotes will be populated here -->
+                        <div class="p-4 bg-blue-50 rounded text-center">
+                            No quotes added yet. Click "Upload New Quote" to get started.
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Getting Started Guide -->
+                <div class="bg-white rounded-lg shadow-md p-6">
+                    <h2 class="text-xl font-semibold mb-4">Getting Started with Quote Processing</h2>
+                    <ol class="list-decimal pl-5 space-y-2">
+                        <li>Upload a supplier quote (PDF or image)</li>
+                        <li>The system will automatically extract product data</li>
+                        <li>Review and edit the extracted information</li>
+                        <li>Set your desired markup percentage</li>
+                        <li>Create products in your Shopify store with a single click</li>
+                    </ol>
+                    <div class="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded">
+                        <p class="text-yellow-800 text-sm">
+                            <strong>Pro Tip:</strong> For best results, use clear PDF documents or high-resolution images of supplier quotes.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', async function() {
+            // Check authentication
+            try {
+                const authResponse = await fetch('/auth/status');
+                const authData = await authResponse.json();
+                
+                if (!authData.authenticated) {
+                    window.location.href = '/login.html';
+                    return;
+                }
+            } catch (error) {
+                console.error('Auth check failed:', error);
+            }
+            
+            // Load quotes data
+            loadQuotes();
+            
+            // Add event listeners
+            document.getElementById('searchBtn').addEventListener('click', loadQuotes);
+            document.getElementById('searchQuotes').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    loadQuotes();
+                }
+            });
+            document.getElementById('filterStatus').addEventListener('change', loadQuotes);
+        });
+        
+        async function loadQuotes() {
+            try {
+                const searchTerm = document.getElementById('searchQuotes').value;
+                const statusFilter = document.getElementById('filterStatus').value;
+                
+                // Build query params
+                const params = new URLSearchParams();
+                if (searchTerm) params.append('search', searchTerm);
+                if (statusFilter !== 'all') params.append('status', statusFilter);
+                
+                const response = await fetch(`/api/quotes?${params.toString()}`);
+                
+                if (!response.ok) {
+                    throw new Error(`Failed to load quotes: ${response.status}`);
+                }
+                
+                const quotes = await response.json();
+                
+                // Update counts
+                document.getElementById('processedCount').textContent = 
+                    quotes.filter(q => q.status === 'processed').length;
+                document.getElementById('productsCount').textContent = 
+                    quotes.reduce((sum, q) => sum + (q.products?.length || 0), 0);
+                
+                // Get suppliers count (optional - you could also just fetch this separately)
+                try {
+                    const suppliersResponse = await fetch('/api/suppliers');
+                    if (suppliersResponse.ok) {
+                        const suppliers = await suppliersResponse.json();
+                        document.getElementById('suppliersCount').textContent = suppliers.length;
+                    }
+                } catch (error) {
+                    console.error('Error loading suppliers count:', error);
+                }
+                
+                // Render quotes
+                renderQuotes(quotes);
+                
+            } catch (error) {
+                console.error('Error loading quotes:', error);
+                document.getElementById('quotesList').innerHTML = `
+                    <div class="p-4 bg-red-100 rounded">
+                        <p class="text-red-800">Error loading quotes: ${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+        
+        function renderQuotes(quotes) {
+            const quotesListElement = document.getElementById('quotesList');
+            
+            if (quotes.length === 0) {
+                quotesListElement.innerHTML = `
+                    <div class="p-4 bg-blue-50 rounded text-center">
+                        No quotes found matching your filters.
+                    </div>
+                `;
+                return;
+            }
+            
+            quotesListElement.innerHTML = quotes.map(quote => `
+                <div class="border rounded-lg overflow-hidden hover:shadow-md transition">
+                    <div class="flex items-center p-4 ${getStatusBackgroundColor(quote.status)}">
+                        <div class="flex-1">
+                            <h3 class="font-semibold">${quote.supplierName || 'Unknown Supplier'}</h3>
+                            <p class="text-sm text-gray-600">Uploaded: ${formatDate(quote.uploadedAt)}</p>
+                        </div>
+                        <div>
+                            <span class="inline-block px-2 py-1 rounded text-xs font-semibold ${getStatusTextColor(quote.status)}">
+                                ${capitalizeFirstLetter(quote.status)}
+                            </span>
+                        </div>
+                    </div>
+                    <div class="p-4 border-t">
+                        <div class="flex justify-between items-center">
+                            <div>
+                                <p class="text-sm"><span class="font-medium">Products:</span> ${quote.products?.length || 0}</p>
+                                ${quote.validUntil ? `<p class="text-sm"><span class="font-medium">Valid Until:</span> ${formatDate(quote.validUntil)}</p>` : ''}
+                            </div>
+                            <div class="space-x-2">
+                                <a href="/quotes/${quote.id}" class="inline-block px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600">
+                                    View
+                                </a>
+                                ${quote.status === 'processed' ? `
+                                <a href="/quotes/${quote.id}/products" class="inline-block px-3 py-1 bg-green-500 text-white rounded hover:bg-green-600">
+                                    Products
+                                </a>` : ''}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+        
+        // Helper functions
+        function getStatusBackgroundColor(status) {
+            switch (status) {
+                case 'processed': return 'bg-green-50';
+                case 'processing': return 'bg-blue-50';
+                case 'pending': return 'bg-yellow-50';
+                case 'error': return 'bg-red-50';
+                default: return '';
+            }
+        }
+        
+        function getStatusTextColor(status) {
+            switch (status) {
+                case 'processed': return 'bg-green-100 text-green-800';
+                case 'processing': return 'bg-blue-100 text-blue-800';
+                case 'pending': return 'bg-yellow-100 text-yellow-800';
+                case 'error': return 'bg-red-100 text-red-800';
+                default: return '';
+            }
+        }
+        
+        function formatDate(dateString) {
+            if (!dateString) return 'N/A';
+            const date = new Date(dateString);
+            return date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
+        }
+        
+        function capitalizeFirstLetter(string) {
+            return string.charAt(0).toUpperCase() + string.slice(1);
+        }
+    </script>
+</body>
+</html>
