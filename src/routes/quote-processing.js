@@ -5,7 +5,7 @@ import { createWorker } from 'tesseract.js';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
-import pdfParse from 'pdf-parse';
+import processPDF from '../utils/pdf-parser.js';
 import { getDB } from '../services/database.js';
 
 // ES Module fix for __dirname
@@ -219,19 +219,17 @@ async function processQuoteInBackground(quoteId, filePath, mimeType) {
   }
 }
 
-// Process PDF files
+// Process PDF files - using our fixed wrapper
 async function processPDF(filePath) {
   try {
-    const dataBuffer = fs.readFileSync(filePath);
-    const pdfData = await pdfParse(dataBuffer);
-    
-    // Process the text content
-    return processExtractedText(pdfData.text, pdfData.info);
+    const result = await import('../utils/pdf-parser.js').then(module => module.default(filePath));
+    return processExtractedText(result.text, result.info);
   } catch (error) {
     console.error('PDF processing error:', error);
     throw error;
   }
 }
+
 
 // Implement OCR processing with Tesseract.js for images
 async function processQuoteWithOCR(filePath) {
