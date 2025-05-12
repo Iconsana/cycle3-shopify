@@ -21,14 +21,15 @@ export const initDB = async () => {
     if (!fs.existsSync(dataDir)) {
       fs.mkdirSync(dataDir, { recursive: true });
     }
-
-    // Default data structure
-    const defaultData = {
-      suppliers: [],
-      productSuppliers: [],
-      purchaseOrders: [],
-      products: []
-    };
+    
+// Default data structure
+const defaultData = {
+  suppliers: [],
+  productSuppliers: [],
+  purchaseOrders: [],
+  products: [],
+  quotes: []  // Add this line
+};
 
     // Create db file if it doesn't exist
     if (!fs.existsSync(dbPath)) {
@@ -46,11 +47,12 @@ export const initDB = async () => {
       await db.write();
     }
 
-    // Make sure all collections exist
-    if (!db.data.suppliers) db.data.suppliers = [];
-    if (!db.data.productSuppliers) db.data.productSuppliers = [];
-    if (!db.data.purchaseOrders) db.data.purchaseOrders = [];
-    if (!db.data.products) db.data.products = [];
+   // Make sure all collections exist
+if (!db.data.suppliers) db.data.suppliers = [];
+if (!db.data.productSuppliers) db.data.productSuppliers = [];
+if (!db.data.purchaseOrders) db.data.purchaseOrders = [];
+if (!db.data.products) db.data.products = [];
+if (!db.data.quotes) db.data.quotes = []; 
 
     console.log(`Database initialized with: ${db.data.suppliers.length} suppliers, ${db.data.productSuppliers.length} product-supplier relationships`);
     return db;
