@@ -175,6 +175,8 @@ async function processQuoteInBackground(quoteId, filePath, mimeType) {
       // Process based on file type
       if (mimeType === 'application/pdf') {
         extractionResult = await processPDF(filePath);
+        // Process the extracted text
+        extractionResult = processExtractedText(extractionResult.text, extractionResult.info || {});
       } else {
         // Image processing for png, jpg, etc.
         extractionResult = await processQuoteWithOCR(filePath);
@@ -218,18 +220,6 @@ async function processQuoteInBackground(quoteId, filePath, mimeType) {
     console.error(`Background processing error for quote ${quoteId}:`, error);
   }
 }
-
-// Process PDF files - using our fixed wrapper
-async function processPDF(filePath) {
-  try {
-    const result = await import('../utils/pdf-parser.js').then(module => module.default(filePath));
-    return processExtractedText(result.text, result.info);
-  } catch (error) {
-    console.error('PDF processing error:', error);
-    throw error;
-  }
-}
-
 
 // Implement OCR processing with Tesseract.js for images
 async function processQuoteWithOCR(filePath) {
