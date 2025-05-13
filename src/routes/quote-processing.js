@@ -172,13 +172,17 @@ async function processQuoteInBackground(quoteId, filePath, mimeType) {
     let extractionResult;
     
     try {
+      console.log(`Processing file of type: ${mimeType}`);
       // Process based on file type
       if (mimeType === 'application/pdf') {
-        extractionResult = await processPDF(filePath);
+        console.log(`Processing PDF file: ${filePath}`);
+        const pdfData = await processPDF(filePath);
+        console.log(`PDF text extracted, length: ${pdfData.text.length} characters`);
         // Process the extracted text
-        extractionResult = processExtractedText(extractionResult.text, extractionResult.info || {});
+        extractionResult = processExtractedText(pdfData.text, pdfData.info || {});
       } else {
         // Image processing for png, jpg, etc.
+        console.log(`Processing image file: ${filePath}`);
         extractionResult = await processQuoteWithOCR(filePath);
       }
       
@@ -241,6 +245,8 @@ async function processQuoteWithOCR(filePath) {
     const { data } = await worker.recognize(filePath);
     await worker.terminate();
     
+    console.log(`OCR completed with confidence: ${data.confidence}%`);
+    
     // Process the extracted text
     return {
       ...processExtractedText(data.text, {}),
@@ -252,77 +258,228 @@ async function processQuoteWithOCR(filePath) {
   }
 }
 
-// Process extracted text to find products
+// Enhanced function for processing extracted text to find products
+// Especially designed for South African quotes with tabular format
 function processExtractedText(text, metadata = {}) {
-  // Simple text parsing for the MVP
-  // In a real implementation, this would be more sophisticated
+  console.log("Starting text extraction with text length:", text.length);
+  
+  // Split into lines and clean up
   const lines = text.split('\n').filter(line => line.trim() !== '');
   
-  // Regular expressions for finding product information
-  const skuPattern = /\b([A-Z0-9]+-[A-Z0-9]+|[A-Z0-9]{4,})\b/; // SKU pattern
-  const pricePattern = /(\$|R)?\s?(\d+\.?\d*)/; // Price pattern with optional currency symbol
-  const quantityPattern = /qty:?\s*(\d+)|(\d+)\s*pcs/i; // Quantity pattern
+  // Debug: log some lines to understand the structure
+  console.log(`Found ${lines.length} lines in the document`);
+  for (let i = 0; i < Math.min(10, lines.length); i++) {
+    console.log(`Line ${i}: ${lines[i]}`);
+  }
   
-  // Very basic extraction logic - will vary based on quote formats
+  // Regular expressions - enhanced for South African quote format
+  const skuPattern = /\b([A-Z0-9]+[A-Z0-9-]*[A-Z0-9]+)\b/; // Enhanced SKU pattern
+  const pricePattern = /R\s?(\d+(?:\.\d{2})?)/i; // South African Rand price format
+  const quantityPattern = /\b(\d+)\s*(units?|boxes|rolls|pcs)\b/i; // Quantity pattern with units
+  
+  // Store extracted products
   const products = [];
   
-  // Process line by line
+  // First, try to detect tabular data (like in BuildCore quote)
+  let inTable = false;
+  let tableHeaderRow = -1;
+  
+  // Look for table headers
   for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    
-    // Skip very short lines or header-like lines
-    if (line.length < 5 || line.toUpperCase() === line && line.length < 15) {
-      continue;
+    const line = lines[i].toLowerCase();
+    // Check for standard table headers
+    if ((line.includes('item') || line.includes('description')) && 
+        (line.includes('sku') || line.includes('product code')) && 
+        (line.includes('quantity') || line.includes('qty')) && 
+        (line.includes('price') || line.includes('unit price'))) {
+      inTable = true;
+      tableHeaderRow = i;
+      console.log(`Found table header at line ${i}: ${lines[i]}`);
+      break;
     }
+  }
+  
+  // If we found a table structure
+  if (inTable && tableHeaderRow >= 0) {
+    console.log("Processing document as tabular data");
     
-    // Look for patterns that might indicate product entries
-    const skuMatch = line.match(skuPattern);
-    const priceMatch = line.match(pricePattern);
-    
-    if (skuMatch && priceMatch) {
-      // Try to find a quantity
-      const quantityMatch = line.match(quantityPattern) || 
-                           (i+1 < lines.length ? lines[i+1].match(quantityPattern) : null);
+    // Find potential product lines by looking for SKU and price pattern
+    for (let i = tableHeaderRow + 1; i < lines.length; i++) {
+      // Skip lines that are likely not product entries
+      if (lines[i].toLowerCase().includes('notes:') || 
+          lines[i].toLowerCase().includes('subtotal') ||
+          lines[i].trim().length < 5) {
+        continue;
+      }
       
-      // Extract description by removing SKU and price
-      let description = line
-        .replace(skuMatch[0], '')
-        .replace(priceMatch[0], '')
-        .replace(quantityMatch ? quantityMatch[0] : '', '')
-        .trim();
+      // Create a multi-line context by joining current and next lines
+      // This helps if data spans multiple lines
+      const contextLines = lines.slice(i, Math.min(i + 3, lines.length)).join(' ');
       
-      // Clean up description
+      // Extract SKU
+      const skuMatch = contextLines.match(skuPattern);
+      if (!skuMatch) continue;
+      
+      // Extract price
+      const priceMatch = contextLines.match(pricePattern);
+      if (!priceMatch) continue;
+      
+      // Extract quantity
+      const quantityMatch = contextLines.match(quantityPattern);
+      
+      // Extract description - everything between the SKU and price
+      // or just use the line if we can't determine it accurately
+      let description = '';
+      
+      // Try to extract description from the current line first
+      if (lines[i].includes(skuMatch[0])) {
+        description = lines[i].split(skuMatch[0]).pop().trim();
+        
+        // Remove price and quantity from description if present
+        if (priceMatch) {
+          description = description.replace(priceMatch[0], '').trim();
+        }
+        if (quantityMatch) {
+          description = description.replace(quantityMatch[0], '').trim();
+        }
+        
+        // If description is empty, try alternative methods
+        if (description.length < 3) {
+          // Try to look at previous line for description
+          if (i > tableHeaderRow + 1) {
+            description = lines[i-1].trim();
+          }
+        }
+      }
+      
+      // Clean up description and make sure it's not just numbers
       description = description.replace(/\s+/g, ' ').trim();
-      
-      // If description is too short, try to look at previous or next line
-      if (description.length < 3 && i > 0) {
-        description = lines[i-1].trim();
+      if (description.length < 3 || /^\d+(\.\d+)?$/.test(description)) {
+        description = `Product with SKU ${skuMatch[1]}`;
       }
       
       // Create product object
       products.push({
         sku: skuMatch[1],
-        description: description || `Product ${products.length + 1}`,
-        unitPrice: parseFloat(priceMatch[2]),
-        availableQuantity: quantityMatch ? parseInt(quantityMatch[1] || quantityMatch[2]) : 100,
+        description: description,
+        unitPrice: parseFloat(priceMatch[1]),
+        availableQuantity: quantityMatch ? parseInt(quantityMatch[1]) : 100,
         minimumOrder: 1,
-        leadTime: '3-5 days' // Default value
+        leadTime: '2-3 days' // Default based on the quote notes
       });
+      
+      console.log(`Extracted product: ${skuMatch[1]} - ${description} - R${priceMatch[1]}`);
     }
   }
   
-  // Fallback to more aggressive extraction if no products found
+  // If we didn't find any products through the table structure,
+  // try a more generic approach to extract product information
   if (products.length === 0) {
-    // Try to find any price-like numbers
+    console.log("No products found in table, trying generic extraction");
+    
+    // Process the document line by line looking for product patterns
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      
+      // Skip short lines or obvious headers
+      if (line.length < 10 || line.toUpperCase() === line && line.length < 15) {
+        continue;
+      }
+      
+      // Skip lines that are clearly not product entries
+      if (line.toLowerCase().includes('total') || 
+          line.toLowerCase().includes('notes') ||
+          line.toLowerCase().includes('payment')) {
+        continue;
+      }
+      
+      // Look for SKU and price in the current line
+      const skuMatch = line.match(skuPattern);
+      const priceMatch = line.match(pricePattern);
+      
+      // If we have both SKU and price, likely a product
+      if (skuMatch && priceMatch) {
+        // Try to find quantity on this line or nearby
+        let quantityMatch = line.match(quantityPattern);
+        if (!quantityMatch && i+1 < lines.length) {
+          quantityMatch = lines[i+1].match(quantityPattern);
+        }
+        
+        // Extract description by removing SKU and price
+        let description = line
+          .replace(skuMatch[0], '')
+          .replace(priceMatch[0], '')
+          .trim();
+        
+        if (quantityMatch) {
+          description = description.replace(quantityMatch[0], '').trim();
+        }
+        
+        // If description is empty, try to find it in adjacent lines
+        if (description.length < 3) {
+          if (i > 0) {
+            description = lines[i-1].trim();
+          } else if (i+1 < lines.length) {
+            description = lines[i+1].trim();
+          }
+        }
+        
+        // Clean up description
+        description = description.replace(/\s+/g, ' ').trim();
+        
+        // Create product object
+        products.push({
+          sku: skuMatch[1],
+          description: description || `Product with SKU ${skuMatch[1]}`,
+          unitPrice: parseFloat(priceMatch[1]),
+          availableQuantity: quantityMatch ? parseInt(quantityMatch[1]) : 100,
+          minimumOrder: 1,
+          leadTime: '2-3 days'
+        });
+      }
+    }
+  }
+  
+  // Last resort: if still no products, look for any price-like patterns
+  if (products.length === 0) {
+    console.log("Still no products found, trying aggressive extraction");
+    
+    // Gather all possible prices
     const allPrices = [];
     const allDescriptions = [];
     
-    for (const line of lines) {
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      
+      // Skip obviously non-product lines
+      if (line.toLowerCase().includes('total') || 
+          line.toLowerCase().includes('subtotal') ||
+          line.length < 10) {
+        continue;
+      }
+      
       const priceMatch = line.match(pricePattern);
-      if (priceMatch && parseFloat(priceMatch[2]) > 0) {
+      if (priceMatch && parseFloat(priceMatch[1]) > 0) {
+        // Check if this line has a potential SKU
+        const skuMatch = line.match(skuPattern);
+        const sku = skuMatch ? skuMatch[1] : `UNKNOWN-${allPrices.length + 1}`;
+        
+        // Get description
+        let description = line.replace(pricePattern, '').trim();
+        if (skuMatch) {
+          description = description.replace(skuMatch[0], '').trim();
+        }
+        
+        // Clean up description
+        description = description.replace(/\s+/g, ' ').trim();
+        if (description.length < 5) {
+          description = `Product ${allPrices.length + 1}`;
+        }
+        
         allPrices.push({
-          price: parseFloat(priceMatch[2]),
-          line: line.replace(priceMatch[0], '').trim()
+          sku: sku,
+          price: parseFloat(priceMatch[1]),
+          description: description
         });
       } else if (line.length > 10 && line.length < 100) {
         // This could be a product description
@@ -330,26 +487,24 @@ function processExtractedText(text, metadata = {}) {
       }
     }
     
-    // Match prices with descriptions
-    for (let i = 0; i < allPrices.length; i++) {
-      const price = allPrices[i];
-      const description = price.line.length > 10 ? price.line : 
-                         (allDescriptions[i] || `Item ${i+1}`);
-      
+    // Create product entries for all prices found
+    allPrices.forEach((item, index) => {
       products.push({
-        sku: `UNKNOWN-${i+1}`,
-        description: description,
-        unitPrice: price.price,
-        availableQuantity: 50, // Default value
+        sku: item.sku,
+        description: item.description,
+        unitPrice: item.price,
+        availableQuantity: 50, // Default
         minimumOrder: 1,
-        leadTime: '3-5 days' // Default value
+        leadTime: '2-3 days'
       });
-    }
+    });
   }
   
+  console.log(`Total products extracted: ${products.length}`);
+  
   return {
-    text: text, // Full extracted text
-    products: products, // Structured product data
+    text: text,
+    products: products,
     metadata: metadata
   };
 }
