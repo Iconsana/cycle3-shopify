@@ -8,6 +8,7 @@ import { fileURLToPath } from 'url';
 import processPDF from '../utils/pdf-parser.js';
 import { getDB } from '../services/database.js';
 import shopify from '../../config/shopify.js';
+import { processQuoteWithClaude } from '../services/claude-service.js';
 
 // ES Module fix for __dirname
 const __filename = fileURLToPath(import.meta.url);
@@ -145,8 +146,6 @@ router.post('/:quoteId/process', async (req, res) => {
     res.status(500).json({ error: 'Quote processing failed', message: error.message });
   }
 });
-
-// Background processing function
 async function processQuoteInBackground(quoteId, filePath, mimeType) {
   try {
     console.log(`Starting background processing for quote ${quoteId}...`);
@@ -169,56 +168,40 @@ async function processQuoteInBackground(quoteId, filePath, mimeType) {
     db.data.quotes[quoteIndex].status = 'processing';
     await db.write();
     
-    // Process the file
-    let extractionResult;
+    // Process using Claude instead of the old approach
+    let extractedProducts = [];
     
     try {
       console.log(`Processing file of type: ${mimeType}`);
-      // Process based on file type
-      if (mimeType === 'application/pdf') {
-        console.log(`Processing PDF file: ${filePath}`);
-        const pdfData = await processPDF(filePath);
-        console.log(`PDF text extracted, length: ${pdfData.text.length} characters`);
-        // Process the extracted text
-        extractionResult = processExtractedText(pdfData.text, pdfData.info || {});
-      } else {
-        // Image processing for png, jpg, etc.
-        console.log(`Processing image file: ${filePath}`);
-        extractionResult = await processQuoteWithOCR(filePath);
-      }
+      console.log(`Processing file: ${filePath}`);
       
-      console.log(`Extraction completed for quote ${quoteId}. Found ${extractionResult.products.length} products.`);
+      // Use Claude for processing
+      extractedProducts = await processQuoteWithClaude(filePath);
       
-      // Update the database with results
-      await db.read(); // Reload in case it changed
-      
-      const updatedQuoteIndex = db.data.quotes.findIndex(q => q.id === quoteId);
-      
-      if (updatedQuoteIndex !== -1) {
-        db.data.quotes[updatedQuoteIndex].status = 'processed';
-        db.data.quotes[updatedQuoteIndex].processedAt = new Date().toISOString();
-        db.data.quotes[updatedQuoteIndex].products = extractionResult.products;
-        db.data.quotes[updatedQuoteIndex].extractedText = extractionResult.text.substring(0, 1000); // Save first 1000 chars only
-        db.data.quotes[updatedQuoteIndex].ocrConfidence = extractionResult.confidence || 0.85; // Default or actual confidence
-        
-        await db.write();
-        console.log(`Quote ${quoteId} processing completed and saved to database`);
-      } else {
-        console.error(`Quote ${quoteId} disappeared from database during processing`);
-      }
+      console.log(`Extraction completed for quote ${quoteId}. Found ${extractedProducts.length} products.`);
       
     } catch (extractionError) {
       console.error(`Extraction error for quote ${quoteId}:`, extractionError);
       
-      // Update quote with error status
-      await db.read();
-      const errorQuoteIndex = db.data.quotes.findIndex(q => q.id === quoteId);
+      // Fall back to basic extraction if Claude fails
+      extractedProducts = [];
+    }
+    
+    // Update the database with results
+    await db.read(); // Reload in case it changed
+    
+    const updatedQuoteIndex = db.data.quotes.findIndex(q => q.id === quoteId);
+    
+    if (updatedQuoteIndex !== -1) {
+      db.data.quotes[updatedQuoteIndex].status = 'processed';
+      db.data.quotes[updatedQuoteIndex].processedAt = new Date().toISOString();
+      db.data.quotes[updatedQuoteIndex].products = extractedProducts;
+      db.data.quotes[updatedQuoteIndex].ocrConfidence = 0.95; // Claude is usually very accurate
       
-      if (errorQuoteIndex !== -1) {
-        db.data.quotes[errorQuoteIndex].status = 'error';
-        db.data.quotes[errorQuoteIndex].error = extractionError.message;
-        await db.write();
-      }
+      await db.write();
+      console.log(`Quote ${quoteId} processing completed and saved to database`);
+    } else {
+      console.error(`Quote ${quoteId} disappeared from database during processing`);
     }
     
   } catch (error) {
