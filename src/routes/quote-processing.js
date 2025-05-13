@@ -7,6 +7,7 @@ import fs from 'fs';
 import { fileURLToPath } from 'url';
 import processPDF from '../utils/pdf-parser.js';
 import { getDB } from '../services/database.js';
+import shopify from '../../config/shopify.js';
 
 // ES Module fix for __dirname
 const __filename = fileURLToPath(import.meta.url);
