@@ -747,4 +747,32 @@ router.delete('/:quoteId', async (req, res) => {
   }
 });
 
+// Add this route to src/routes/quote-processing.js
+router.get('/:quoteId/debug', async (req, res) => {
+  try {
+    const quoteId = req.params.quoteId;
+    const db = await getDB();
+    await db.read();
+    
+    const quote = db.data.quotes.find(q => q.id === quoteId);
+    
+    if (!quote) {
+      return res.status(404).json({ error: 'Quote not found' });
+    }
+    
+    // Return extraction debugging info
+    res.json({
+      extractedText: quote.extractedText,
+      products: quote.products,
+      status: quote.status,
+      processingInfo: {
+        fileType: quote.fileInfo?.type,
+        ocrConfidence: quote.ocrConfidence
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 export default router;
