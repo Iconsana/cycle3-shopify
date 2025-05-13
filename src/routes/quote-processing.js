@@ -492,36 +492,100 @@ router.post('/:quoteId/create-products', async (req, res) => {
       return res.status(400).json({ error: 'No products found in the quote' });
     }
     
-    // Simulate creating products in Shopify
-    const createdProducts = [];
+    // Create Shopify client
+    const client = new shopify.clients.Rest({
+      session: {
+        shop: process.env.SHOPIFY_SHOP_NAME,
+        accessToken: process.env.SHOPIFY_ACCESS_TOKEN
+      }
+    });
     
+    // Get existing products to check for SKU matches
+    console.log('Fetching existing products from Shopify...');
+    const existingProducts = await getExistingProducts(client);
+    console.log(`Found ${existingProducts.length} existing products in Shopify`);
+    
+    const createdProducts = [];
+    const updatedProducts = [];
+    const skippedProducts = [];
+    
+    // Process each product from the quote
     for (const product of quote.products) {
-      // Calculate price with markup
-      const markupPrice = product.unitPrice * (1 + markup / 100);
-      
-      // In production, use the Shopify API to create the product
-      // For MVP, return mock data
-      createdProducts.push({
-        id: `gid://shopify/Product/${Date.now() + Math.floor(Math.random() * 1000)}`,
-        title: product.description,
-        sku: product.sku,
-        price: markupPrice.toFixed(2),
-        originalPrice: product.unitPrice,
-        markup: markup
-      });
+      try {
+        // Calculate price with markup
+        const markupPrice = product.unitPrice * (1 + markup / 100);
+        
+        // Check if product with this SKU already exists
+        const existingProduct = findProductBySku(existingProducts, product.sku);
+        
+        if (existingProduct) {
+          console.log(`Found existing product with SKU ${product.sku}, updating...`);
+          // Update existing product
+          const updatedProduct = await updateShopifyProduct(
+            client, 
+            existingProduct.id, 
+            product, 
+            markupPrice
+          );
+          updatedProducts.push(updatedProduct);
+        } else {
+          console.log(`Creating new product with SKU ${product.sku}...`);
+          // Create new product
+          const newProduct = await createShopifyProduct(
+            client,
+            product,
+            markupPrice
+          );
+          createdProducts.push(newProduct);
+        }
+      } catch (productError) {
+        console.error(`Error processing product ${product.sku}:`, productError);
+        skippedProducts.push({
+          sku: product.sku,
+          error: productError.message
+        });
+      }
     }
     
     // Update the quote in the database
     const quoteIndex = db.data.quotes.findIndex(q => q.id === quoteId);
     if (quoteIndex !== -1) {
       db.data.quotes[quoteIndex].shopifyProductsCreated = true;
-      db.data.quotes[quoteIndex].shopifyProducts = createdProducts;
+      db.data.quotes[quoteIndex].shopifyProducts = [
+        ...createdProducts.map(p => ({
+          id: p.id,
+          title: p.title,
+          sku: p.variants[0]?.sku,
+          price: p.variants[0]?.price,
+          originalPrice: p.variants[0]?.sku && quote.products.find(qp => qp.sku === p.variants[0].sku)?.unitPrice,
+          markup: markup
+        })),
+        ...updatedProducts.map(p => ({
+          id: p.id,
+          title: p.title,
+          sku: p.variants[0]?.sku,
+          price: p.variants[0]?.price,
+          originalPrice: p.variants[0]?.sku && quote.products.find(qp => qp.sku === p.variants[0].sku)?.unitPrice,
+          markup: markup,
+          updated: true
+        }))
+      ];
       await db.write();
     }
     
+    // Format response for client
+    const allProducts = [...createdProducts, ...updatedProducts];
+    
     res.status(201).json({
-      message: `Created ${createdProducts.length} products in Shopify`,
-      products: createdProducts
+      message: `Created ${createdProducts.length} products and updated ${updatedProducts.length} products in Shopify`,
+      products: allProducts.map(p => ({
+        id: p.id,
+        title: p.title,
+        sku: p.variants && p.variants[0] ? p.variants[0].sku : null,
+        price: p.variants && p.variants[0] ? p.variants[0].price : null,
+        updated: updatedProducts.includes(p)
+      })),
+      skipped: skippedProducts
     });
     
   } catch (error) {
@@ -530,6 +594,118 @@ router.post('/:quoteId/create-products', async (req, res) => {
   }
 });
 
+// Helper to get existing products from Shopify
+async function getExistingProducts(client) {
+  try {
+    let allProducts = [];
+    let response = await client.get({
+      path: 'products',
+      query: { limit: 250 } // Get a substantial number of products
+    });
+    
+    allProducts = response.body.products || [];
+    
+    // Handle pagination if there are more products
+    while (response.pageInfo?.nextPage?.query) {
+      response = await client.get({
+        path: 'products',
+        query: response.pageInfo.nextPage.query
+      });
+      
+      if (response.body.products && response.body.products.length > 0) {
+        allProducts = [...allProducts, ...response.body.products];
+      }
+    }
+    
+    return allProducts;
+  } catch (error) {
+    console.error('Error fetching existing products:', error);
+    return [];
+  }
+}
+
+// Helper to find a product by SKU
+function findProductBySku(products, sku) {
+  if (!sku) return null;
+  
+  // Look through all products and their variants
+  for (const product of products) {
+    if (product.variants) {
+      for (const variant of product.variants) {
+        if (variant.sku === sku) {
+          return product;
+        }
+      }
+    }
+  }
+  return null;
+}
+
+// Create a new product in Shopify
+async function createShopifyProduct(client, product, price) {
+  // Create a new product
+  const response = await client.post({
+    path: 'products',
+    data: {
+      product: {
+        title: product.description,
+        body_html: `<p>${product.description}</p>`,
+        vendor: "Imported from Supplier Quote",
+        status: "active",
+        variants: [
+          {
+            sku: product.sku,
+            price: price.toFixed(2),
+            inventory_management: "shopify",
+            inventory_quantity: product.availableQuantity || 0,
+            requires_shipping: true
+          }
+        ]
+      }
+    }
+  });
+  
+  return response.body.product;
+}
+
+// Update an existing product in Shopify
+async function updateShopifyProduct(client, productId, product, price) {
+  // Get the existing product first
+  const getResponse = await client.get({
+    path: `products/${productId}`
+  });
+  
+  const existingProduct = getResponse.body.product;
+  let variantToUpdate = null;
+  
+  // Find the variant with matching SKU
+  if (existingProduct.variants) {
+    variantToUpdate = existingProduct.variants.find(v => v.sku === product.sku);
+  }
+  
+  if (!variantToUpdate) {
+    throw new Error(`Could not find variant with SKU ${product.sku}`);
+  }
+  
+  // Update the variant
+  await client.put({
+    path: `variants/${variantToUpdate.id}`,
+    data: {
+      variant: {
+        id: variantToUpdate.id,
+        price: price.toFixed(2),
+        inventory_quantity: product.availableQuantity || 0
+      }
+    }
+  });
+  
+  // Get the updated product
+  const updateResponse = await client.get({
+    path: `products/${productId}`
+  });
+  
+  return updateResponse.body.product;
+}
 // Access the uploaded file
 router.get('/:quoteId/file', async (req, res) => {
   try {
