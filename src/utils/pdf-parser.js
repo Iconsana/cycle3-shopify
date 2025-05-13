@@ -1,5 +1,3 @@
-// Create a wrapper for pdf-parse that handles the missing test file issue
-
 // src/utils/pdf-parser.js
 import fs from 'fs';
 import path from 'path';
@@ -35,25 +33,66 @@ const fixPdfParse = () => {
 // Run the fix
 fixPdfParse();
 
-// Now import the pdf-parse library
-let pdfParse;
-try {
-  pdfParse = (await import('pdf-parse')).default;
-} catch (error) {
-  console.error('Error importing pdf-parse:', error);
-  // Create a fallback implementation that just returns empty text
-  pdfParse = async () => ({ text: '', info: {}, numpages: 0 });
-}
-
-// Wrapper function for processing PDFs
-export async function processPDF(filePath) {
+// Enhanced PDF processing with better error handling
+async function processPDF(filePath) {
+  console.log(`Starting PDF processing for: ${filePath}`);
+  
   try {
+    // Verify file exists
+    if (!fs.existsSync(filePath)) {
+      throw new Error(`PDF file not found at path: ${filePath}`);
+    }
+    
+    // Read file
     const dataBuffer = fs.readFileSync(filePath);
-    return await pdfParse(dataBuffer);
+    console.log(`Read ${dataBuffer.length} bytes from PDF file`);
+    
+    // Import pdf-parse dynamically
+    const pdfParse = (await import('pdf-parse')).default;
+    
+    // Enhanced options for better text extraction
+    const options = {
+      // Additional options to improve extraction quality
+      // No page handling (process all pages)
+      // No custom rendering
+    };
+    
+    // Parse PDF
+    console.log('Starting PDF parsing...');
+    const result = await pdfParse(dataBuffer, options);
+    console.log(`PDF parsed successfully. Extracted ${result.text.length} characters of text`);
+    
+    // Return the extracted data
+    return {
+      text: result.text,
+      info: result.info || {},
+      numpages: result.numpages || 0,
+      metadata: result.metadata || {}
+    };
+    
   } catch (error) {
     console.error('Error processing PDF:', error);
-    // Return empty result on error
-    return { text: '', info: {}, numpages: 0 };
+    
+    // Check for common errors
+    if (error.message.includes('file not found')) {
+      throw new Error(`PDF file not found: ${filePath}`);
+    }
+    
+    if (error.message.includes('Invalid PDF structure')) {
+      throw new Error('The PDF file appears to be corrupted or invalid');
+    }
+    
+    if (error.message.includes('not a PDF file')) {
+      throw new Error('The file does not appear to be a valid PDF');
+    }
+    
+    // Return minimal data on error to allow processing to continue
+    return { 
+      text: 'Error extracting PDF content. ' + error.message,
+      info: {},
+      numpages: 0,
+      error: error.message
+    };
   }
 }
 
