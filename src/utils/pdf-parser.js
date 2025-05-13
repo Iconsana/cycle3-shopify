@@ -5,34 +5,30 @@ import { fileURLToPath } from 'url';
 
 // Fix for pdf-parse library trying to access test files
 const fixPdfParse = () => {
-  // Create directory structure for test data in node_modules
+  // Create directory structure for test data in multiple potential locations
   const __dirname = path.dirname(fileURLToPath(import.meta.url));
-  const moduleTestDir = path.join(__dirname, '../../node_modules/pdf-parse/test/data');
   
-  // Also create the test directory relative to current working directory
-  const cwdTestDir = path.join(process.cwd(), 'test/data');
+  // List of possible locations where pdf-parse might look for test files
+  const possiblePaths = [
+    path.join(__dirname, '../../node_modules/pdf-parse/test/data'),
+    path.join(process.cwd(), 'test/data'),
+    path.join(process.cwd(), 'node_modules/pdf-parse/test/data')
+  ];
   
   try {
-    // Create directory structures if they don't exist
-    if (!fs.existsSync(moduleTestDir)) {
-      fs.mkdirSync(moduleTestDir, { recursive: true });
-    }
-    
-    if (!fs.existsSync(cwdTestDir)) {
-      fs.mkdirSync(cwdTestDir, { recursive: true });
-    }
-    
-    // Create empty test file in both locations
+    // Create empty test PDF content
     const testPdfContent = '%PDF-1.3\n%¥±ë\n1 0 obj\n<</Type/Catalog/Pages 2 0 R>>\nendobj\n2 0 obj\n<</Type/Pages/Kids[]/Count 0>>\nendobj\nxref\n0 3\n0000000000 65535 f \n0000000015 00000 n \n0000000060 00000 n \ntrailer\n<</Size 3/Root 1 0 R>>\nstartxref\n110\n%%EOF\n';
     
-    const moduleTestFile = path.join(moduleTestDir, '05-versions-space.pdf');
-    if (!fs.existsSync(moduleTestFile)) {
-      fs.writeFileSync(moduleTestFile, testPdfContent);
-    }
-    
-    const cwdTestFile = path.join(cwdTestDir, '05-versions-space.pdf');
-    if (!fs.existsSync(cwdTestFile)) {
-      fs.writeFileSync(cwdTestFile, testPdfContent);
+    // Create directories and test file in all possible locations
+    for (const dirPath of possiblePaths) {
+      if (!fs.existsSync(dirPath)) {
+        fs.mkdirSync(dirPath, { recursive: true });
+      }
+      
+      const testFile = path.join(dirPath, '05-versions-space.pdf');
+      if (!fs.existsSync(testFile)) {
+        fs.writeFileSync(testFile, testPdfContent);
+      }
     }
     
     console.log('Fixed pdf-parse test file issue in both module and working directories');
@@ -60,57 +56,43 @@ async function processPDF(filePath) {
     const dataBuffer = fs.readFileSync(filePath);
     console.log(`Read ${dataBuffer.length} bytes from PDF file`);
     
-    // Import pdf-parse dynamically
-    const pdfParse = (await import('pdf-parse')).default;
-    
-    // Force the library to use our existing test file by monkey-patching require.resolve
-    // This is a hack but should work for this specific issue
-    const originalResolve = require.resolve;
-    require.resolve = function(path) {
-      if (path === './test/data/05-versions-space.pdf') {
-        return require.resolve.paths('./test/data/05-versions-space.pdf')[0] + '/05-versions-space.pdf';
+    try {
+      // Import pdf-parse dynamically
+      const pdfParseModule = await import('pdf-parse');
+      const pdfParse = pdfParseModule.default;
+      
+      // Parse PDF
+      console.log('Starting PDF parsing...');
+      const result = await pdfParse(dataBuffer);
+      console.log(`PDF parsed successfully. Extracted ${result.text.length} characters of text`);
+      
+      // Debug logging
+      if (result.text && result.text.length > 0) {
+        console.log(`Raw extracted text (first 500 chars):\n${result.text.substring(0, 500)}`);
       }
-      return originalResolve.apply(this, arguments);
-    };
-    
-    // Enhanced options for better text extraction
-    const options = {
-      // Additional options to improve extraction quality
-      // No page handling (process all pages)
-      // No custom rendering
-    };
-    
-    // Parse PDF
-    console.log('Starting PDF parsing...');
-    const result = await pdfParse(dataBuffer, options);
-    console.log(`PDF parsed successfully. Extracted ${result.text.length} characters of text`);
-    
-    // Debug logging - moved inside the function where result is defined
-    console.log(`Raw extracted text (first 500 chars):\n${result.text.substring(0, 500)}`);
-    
-    // Return the extracted data
-    return {
-      text: result.text,
-      info: result.info || {},
-      numpages: result.numpages || 0,
-      metadata: result.metadata || {}
-    };
+      
+      // Return the extracted data
+      return {
+        text: result.text,
+        info: result.info || {},
+        numpages: result.numpages || 0,
+        metadata: result.metadata || {}
+      };
+    } catch (pdfError) {
+      console.error('PDF parsing error:', pdfError);
+      
+      // Try a fallback approach - extract text as best we can
+      // For now, return the error so we can at least see what's happening
+      return { 
+        text: 'Error extracting PDF content. ' + pdfError.message,
+        info: {},
+        numpages: 0,
+        error: pdfError.message
+      };
+    }
     
   } catch (error) {
     console.error('Error processing PDF:', error);
-    
-    // Check for common errors
-    if (error.message.includes('file not found')) {
-      throw new Error(`PDF file not found: ${filePath}`);
-    }
-    
-    if (error.message.includes('Invalid PDF structure')) {
-      throw new Error('The PDF file appears to be corrupted or invalid');
-    }
-    
-    if (error.message.includes('not a PDF file')) {
-      throw new Error('The file does not appear to be a valid PDF');
-    }
     
     // Return minimal data on error to allow processing to continue
     return { 
