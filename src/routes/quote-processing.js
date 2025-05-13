@@ -1,4 +1,4 @@
-// src/routes/quote-processing.js - Enhanced Implementation
+// src/routes/quote-processing.js
 import express from 'express';
 import multer from 'multer';
 import { createWorker } from 'tesseract.js';
@@ -258,8 +258,7 @@ async function processQuoteWithOCR(filePath) {
   }
 }
 
-// In src/routes/quote-processing.js, replace the processExtractedText function
-
+// Improved processExtractedText function with fixes for identified issues
 function processExtractedText(text, metadata = {}) {
   console.log("Starting text extraction with text length:", text.length);
   
@@ -273,12 +272,16 @@ function processExtractedText(text, metadata = {}) {
   }
   
   // Better patterns specifically for South African quotes
-  const skuPattern = /\b([A-Z0-9]{3,}(?:[-][A-Z0-9]+)*)\b/;
+  // Improved SKU pattern to avoid false positives
+  const skuPattern = /\b([A-Z0-9]{3,}(?:[-][A-Z0-9]+)*)\b(?!\s*mm|\s*W|\s*days)/;
   const pricePattern = /R\s*(\d+(?:,\d{3})*(?:\.\d{2})?)/i;
-  const quantityPattern = /\b(\d+)\s*(?:units?|pcs|boxes|rolls)\b/i;
+  const quantityPattern = /\b(\d+)\s*(?:units?|pcs|boxes|rolls)?\b/i;
+  
+  // Blacklist of known non-SKU terms that might be incorrectly matched
+  const skuBlacklist = ['850W', 'N95', 'BRUSH', 'HEAD', 'PAINT', 'DUST'];
   
   // Store extracted products
-  const products = [];
+  let products = [];
   
   // Special handling for BuildCore format (match even without table headers)
   let inBuildCoreFormat = false;
@@ -306,46 +309,80 @@ function processExtractedText(text, metadata = {}) {
       continue;
     }
     
-    // Create a context by combining current line with next line
-    const context = i < lines.length - 1 ? 
-                   line + " " + lines[i+1] : line;
+    // Create a context by combining current line with adjacent lines
+    // This creates a 3-line window for better context
+    const prevLine = i > 0 ? lines[i-1] : '';
+    const nextLine = i < lines.length - 1 ? lines[i+1] : '';
+    const context = `${prevLine} ${line} ${nextLine}`;
     
     // Extract SKU
-    const skuMatch = context.match(skuPattern);
+    const skuMatch = line.match(skuPattern);
     if (!skuMatch) continue;
+    
+    // Skip if SKU is in blacklist
+    const sku = skuMatch[1];
+    if (skuBlacklist.some(term => sku.includes(term))) continue;
+    
+    // Validate SKU - must contain at least one letter and one digit
+    if (!/[A-Z]/.test(sku) || !/[0-9]/.test(sku)) continue;
     
     // Extract price
     const priceMatch = context.match(pricePattern);
     if (!priceMatch) continue;
     
+    // Process the price (remove commas, convert to float)
+    const price = parseFloat(priceMatch[1].replace(',', ''));
+    
     // Extract quantity
     const quantityMatch = context.match(quantityPattern);
     const quantity = quantityMatch ? parseInt(quantityMatch[1]) : 10; // Default quantity
     
-    // Extract description - everything before SKU or anything meaningful
-    let description = line.split(skuMatch[0])[0].trim();
-    if (description.length < 5) {
-      // If description is too short, try to use previous line
-      if (i > 0) description = lines[i-1].trim();
+    // Extract description with improved logic
+    let description = '';
+    
+    // Try to get description from the line or adjacent lines
+    if (i > 0 && lines[i-1].length > 3 && !lines[i-1].includes("SKU") && 
+        !lines[i-1].match(skuPattern)) {
+      // Use previous line if it looks like a description
+      description = lines[i-1].trim();
+    } else {
+      // Try to extract from current line
+      const parts = line.split(skuMatch[0]);
+      if (parts[0] && parts[0].length > 3) {
+        description = parts[0].trim();
+      } else if (i < lines.length - 1 && !lines[i+1].match(skuPattern)) {
+        // If no description in current line, try next line
+        description = lines[i+1].trim();
+      }
     }
     
-    // Clean up description
-    description = description.replace(/\s+/g, ' ').trim();
-    if (description.length < 5) description = `Product with SKU ${skuMatch[1]}`;
+    // If description is still empty or too short, use a generic one
+    if (description.length < 3) {
+      description = `Product ${sku}`;
+    }
     
-    // Process the price (remove commas, convert to float)
-    const price = parseFloat(priceMatch[1].replace(',', ''));
+    // Clean up description - remove price patterns and extra spaces
+    description = description
+      .replace(pricePattern, '')
+      .replace(quantityPattern, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+    
+    // Limit description length
+    if (description.length > 100) {
+      description = description.substring(0, 100);
+    }
     
     // Add the product
     products.push({
-      sku: skuMatch[1],
+      sku: sku,
       description: description,
       unitPrice: price,
       availableQuantity: quantity,
       leadTime: 3 // Default lead time
     });
     
-    console.log(`Extracted product: ${skuMatch[1]} - ${price} - ${quantity}`);
+    console.log(`Extracted product: ${sku} - ${price} - ${quantity}`);
   }
   
   // If BuildCore format but no products found, try a more targeted approach
@@ -363,6 +400,9 @@ function processExtractedText(text, metadata = {}) {
         const priceMatch = line.match(/R\s*(\d+(?:\.\d{2})?)/);
         
         if (skuMatch && priceMatch) {
+          // Skip if SKU is in blacklist
+          if (skuBlacklist.some(term => skuMatch[1].includes(term))) continue;
+          
           products.push({
             sku: skuMatch[1],
             description: `Product ${skuMatch[1]}`,
@@ -375,11 +415,23 @@ function processExtractedText(text, metadata = {}) {
     }
   }
   
-  console.log(`Total products extracted: ${products.length}`);
+  // Remove duplicates based on SKU
+  const uniqueProducts = [];
+  const seenSKUs = new Set();
+  
+  for (const product of products) {
+    if (!seenSKUs.has(product.sku)) {
+      seenSKUs.add(product.sku);
+      uniqueProducts.push(product);
+    }
+  }
+  
+  console.log(`Total products extracted (before deduplication): ${products.length}`);
+  console.log(`Total products extracted (after deduplication): ${uniqueProducts.length}`);
   
   return {
     text: text,
-    products: products,
+    products: uniqueProducts,
     metadata: metadata
   };
 }
@@ -622,7 +674,7 @@ router.delete('/:quoteId', async (req, res) => {
   }
 });
 
-// Add this route to src/routes/quote-processing.js
+// Debug route to get extraction details
 router.get('/:quoteId/debug', async (req, res) => {
   try {
     const quoteId = req.params.quoteId;
