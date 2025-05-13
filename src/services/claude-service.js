@@ -3,8 +3,13 @@ import Anthropic from '@anthropic-ai/sdk';
 import fs from 'fs';
 import path from 'path';
 
-// Initialize Anthropic client
+// Change this:
 const anthropic = new AnthropicClient({
+  apiKey: process.env.ANTHROPIC_API_KEY,
+});
+
+// To this:
+const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 });
 
