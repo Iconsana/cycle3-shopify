@@ -465,11 +465,13 @@ router.get('/:quoteId', async (req, res) => {
   }
 });
 
-// Create products in Shopify from extracted quote data
+// Update the create products endpoint
 router.post('/:quoteId/create-products', async (req, res) => {
   try {
     const quoteId = req.params.quoteId;
     const markup = req.body.markup || 50; // Default 50% markup
+    
+    console.log(`Starting product creation for quote ${quoteId} with markup ${markup}%`);
     
     // Fetch the quote from the database
     const db = await getDB();
@@ -513,8 +515,15 @@ router.post('/:quoteId/create-products', async (req, res) => {
     // Process each product from the quote
     for (const product of quote.products) {
       try {
+        // Ensure we use the full description from the original quote
+        const fullDescription = product.description.trim();
+        
         // Calculate price with markup
-        const markupPrice = product.unitPrice * (1 + markup / 100);
+        const supplierPrice = parseFloat(product.unitPrice);
+        const markupPrice = supplierPrice * (1 + markup / 100);
+        
+        console.log(`Processing product: ${product.sku} - ${fullDescription}`);
+        console.log(`Supplier price: R${supplierPrice.toFixed(2)}, Marked up price: R${markupPrice.toFixed(2)}`);
         
         // Check if product with this SKU already exists
         const existingProduct = findProductBySku(existingProducts, product.sku);
@@ -525,28 +534,319 @@ router.post('/:quoteId/create-products', async (req, res) => {
           const updatedProduct = await updateShopifyProduct(
             client, 
             existingProduct.id, 
-            product, 
+            {
+              ...product,
+              description: fullDescription
+            }, 
             markupPrice
           );
           updatedProducts.push(updatedProduct);
         } else {
-          console.log(`Creating new product with SKU ${product.sku}...`);
-          // Create new product
-          const newProduct = await createShopifyProduct(
-            client,
-            product,
-            markupPrice
-          );
-          createdProducts.push(newProduct);
+          // Try to find product by similar description if SKU doesn't match
+          const similarProduct = findProductBySimilarDescription(existingProducts, fullDescription);
+          
+          if (similarProduct) {
+            console.log(`Found similar product "${similarProduct.title}", updating...`);
+            const updatedProduct = await updateShopifyProduct(
+              client, 
+              similarProduct.id, 
+              {
+                ...product,
+                description: fullDescription
+              }, 
+              markupPrice
+            );
+            updatedProducts.push(updatedProduct);
+          } else {
+            console.log(`Creating new product with SKU ${product.sku}...`);
+            // Create new product
+            const newProduct = await createShopifyProduct(
+              client,
+              {
+                ...product,
+                description: fullDescription
+              },
+              markupPrice
+            );
+            createdProducts.push(newProduct);
+          }
         }
       } catch (productError) {
         console.error(`Error processing product ${product.sku}:`, productError);
         skippedProducts.push({
           sku: product.sku,
+          description: product.description,
           error: productError.message
         });
       }
     }
+    
+    // Update the quote in the database
+    const quoteIndex = db.data.quotes.findIndex(q => q.id === quoteId);
+    if (quoteIndex !== -1) {
+      db.data.quotes[quoteIndex].shopifyProductsCreated = true;
+      db.data.quotes[quoteIndex].shopifyProducts = [
+        ...createdProducts.map(p => ({
+          id: p.id,
+          title: p.title,
+          sku: p.variants[0]?.sku,
+          price: p.variants[0]?.price,
+          originalPrice: p.variants[0]?.sku && quote.products.find(qp => qp.sku === p.variants[0].sku)?.unitPrice,
+          markup: markup,
+          created: true
+        })),
+        ...updatedProducts.map(p => ({
+          id: p.id,
+          title: p.title,
+          sku: p.variants[0]?.sku,
+          price: p.variants[0]?.price,
+          originalPrice: p.variants[0]?.sku && quote.products.find(qp => qp.sku === p.variants[0].sku)?.unitPrice,
+          markup: markup,
+          updated: true
+        }))
+      ];
+      await db.write();
+    }
+    
+    // Format response for client
+    const results = {
+      created: createdProducts.length,
+      updated: updatedProducts.length,
+      skipped: skippedProducts.length,
+      products: [
+        ...createdProducts.map(p => ({
+          id: p.id,
+          title: p.title,
+          sku: p.variants && p.variants[0] ? p.variants[0].sku : null,
+          price: p.variants && p.variants[0] ? p.variants[0].price : null,
+          type: 'created'
+        })),
+        ...updatedProducts.map(p => ({
+          id: p.id,
+          title: p.title,
+          sku: p.variants && p.variants[0] ? p.variants[0].sku : null,
+          price: p.variants && p.variants[0] ? p.variants[0].price : null,
+          type: 'updated'
+        }))
+      ],
+      errors: skippedProducts
+    };
+    
+    console.log(`Product creation complete: Created ${results.created}, Updated ${results.updated}, Skipped ${results.skipped}`);
+    
+    res.status(201).json({
+      message: `Created ${results.created} products and updated ${results.updated} products in Shopify`,
+      results
+    });
+    
+  } catch (error) {
+    console.error('Error creating products:', error);
+    res.status(500).json({ error: 'Failed to create products', message: error.message });
+  }
+});
+
+// Helper to get existing products from Shopify
+async function getExistingProducts(client) {
+  try {
+    let allProducts = [];
+    let response = await client.get({
+      path: 'products',
+      query: { limit: 250 } // Get a substantial number of products
+    });
+    
+    allProducts = response.body.products || [];
+    
+    // Handle pagination if there are more products
+    while (response.body?.products?.length === 250) {
+      const lastId = allProducts[allProducts.length - 1]?.id;
+      if (!lastId) break;
+      
+      response = await client.get({
+        path: 'products',
+        query: { limit: 250, since_id: lastId }
+      });
+      
+      if (response.body.products && response.body.products.length > 0) {
+        allProducts = [...allProducts, ...response.body.products];
+      } else {
+        break;
+      }
+    }
+    
+    return allProducts;
+  } catch (error) {
+    console.error('Error fetching existing products:', error);
+    return [];
+  }
+}
+
+// Helper to find a product by SKU
+function findProductBySku(products, sku) {
+  if (!sku) return null;
+  
+  // Look through all products and their variants
+  for (const product of products) {
+    if (product.variants) {
+      for (const variant of product.variants) {
+        if (variant.sku === sku) {
+          return product;
+        }
+      }
+    }
+  }
+  return null;
+}
+
+// Helper to find a product by similar description
+function findProductBySimilarDescription(products, description) {
+  if (!description) return null;
+  
+  // Normalize the description for comparison
+  const normalizedDescription = description.toLowerCase().trim();
+  
+  // Look for products with similar titles
+  for (const product of products) {
+    const productTitle = product.title?.toLowerCase().trim() || '';
+    
+    // Check if the product title contains the description or vice versa
+    if (productTitle.includes(normalizedDescription) || 
+        normalizedDescription.includes(productTitle)) {
+      return product;
+    }
+  }
+  
+  return null;
+}
+
+// Create a new product in Shopify with complete details
+async function createShopifyProduct(client, product, price) {
+  console.log(`Creating new product: ${product.description} (${product.sku})`);
+  
+  // Format vendor from the original quote if available
+  const vendor = "BuildCore Distributors";
+  
+  // Create product tags based on product description
+  const tags = extractTags(product.description);
+  
+  // Create a new product
+  const response = await client.post({
+    path: 'products',
+    data: {
+      product: {
+        title: product.description,
+        body_html: `<p>${product.description}</p>`,
+        vendor: vendor,
+        product_type: determineProductType(product.description),
+        tags: tags.join(', '),
+        status: "active",
+        variants: [
+          {
+            sku: product.sku,
+            price: price.toFixed(2),
+            inventory_management: "shopify",
+            inventory_quantity: product.availableQuantity || 0,
+            requires_shipping: true,
+            taxable: true,
+            barcode: "" // Can be populated if barcode info is available
+          }
+        ],
+        options: [
+          {
+            name: "Size",
+            values: ["Default"]
+          }
+        ]
+      }
+    }
+  });
+  
+  if (response.body.product) {
+    console.log(`Successfully created product: ${response.body.product.title} (ID: ${response.body.product.id})`);
+  }
+  
+  return response.body.product;
+}
+
+// Update an existing product in Shopify
+async function updateShopifyProduct(client, productId, product, price) {
+  console.log(`Updating product ID ${productId} with SKU ${product.sku}`);
+  
+  // First get the current product data
+  const getResponse = await client.get({
+    path: `products/${productId}`
+  });
+  
+  const existingProduct = getResponse.body.product;
+  
+  if (!existingProduct) {
+    throw new Error(`Product with ID ${productId} not found`);
+  }
+  
+  // Find the variant matching our SKU, or the primary variant
+  let variantToUpdate = null;
+  if (existingProduct.variants) {
+    variantToUpdate = existingProduct.variants.find(v => v.sku === product.sku);
+    if (!variantToUpdate && existingProduct.variants.length > 0) {
+      variantToUpdate = existingProduct.variants[0];
+    }
+  }
+  
+  if (!variantToUpdate) {
+    throw new Error(`Could not find a variant to update for product ${productId}`);
+  }
+  
+  // Update the variant with new price and inventory
+  await client.put({
+    path: `variants/${variantToUpdate.id}`,
+    data: {
+      variant: {
+        id: variantToUpdate.id,
+        price: price.toFixed(2),
+        inventory_quantity: product.availableQuantity || 0,
+        sku: product.sku // Update SKU if it was different
+      }
+    }
+  });
+  
+  // Now get the updated product
+  const updateResponse = await client.get({
+    path: `products/${productId}`
+  });
+  
+  console.log(`Successfully updated product: ${updateResponse.body.product.title}`);
+  
+  return updateResponse.body.product;
+}
+
+// Helper to extract meaningful tags from product description
+function extractTags(description) {
+  if (!description) return [];
+  
+  // Basic tag extraction - split words and filter
+  const words = description
+    .replace(/[^\w\s-]/g, '')
+    .split(/\s+/)
+    .filter(word => word.length > 3)
+    .map(word => word.toLowerCase());
+  
+  // Remove duplicates
+  return [...new Set(words)];
+}
+
+// Determine product type from description
+function determineProductType(description) {
+  if (!description) return "Hardware";
+  
+  const lowerDesc = description.toLowerCase();
+  
+  if (lowerDesc.includes("paint")) return "Paint";
+  if (lowerDesc.includes("brush")) return "Brushes";
+  if (lowerDesc.includes("drill") || lowerDesc.includes("grinder")) return "Power Tools";
+  if (lowerDesc.includes("mask")) return "Safety Equipment";
+  if (lowerDesc.includes("mop") || lowerDesc.includes("clean")) return "Cleaning Supplies";
+  
+  return "Hardware"; // Default category
+}
     
     // Update the quote in the database
     const quoteIndex = db.data.quotes.findIndex(q => q.id === quoteId);
