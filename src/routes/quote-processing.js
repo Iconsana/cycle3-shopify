@@ -259,7 +259,7 @@ async function processQuoteWithOCR(filePath) {
   }
 }
 
-// Improved processExtractedText function with fixes for identified issues
+// Improved processExtractedText function with fixes for extraction issues
 function processExtractedText(text, metadata = {}) {
   console.log("Starting text extraction with text length:", text.length);
   
@@ -272,14 +272,15 @@ function processExtractedText(text, metadata = {}) {
     console.log(`Line ${i}: ${lines[i]}`);
   }
   
-  // Better patterns specifically for South African quotes
-  // Improved SKU pattern to avoid false positives
-  const skuPattern = /\b([A-Z0-9]{3,}(?:[-][A-Z0-9]+)*)\b(?!\s*mm|\s*W|\s*days)/;
-  const pricePattern = /R\s*(\d+(?:,\d{3})*(?:\.\d{2})?)/i;
+  // IMPROVED: Better patterns for South African quotes
+  // Made the SKU pattern more inclusive
+  const skuPattern = /\b([A-Z0-9]{3,}(?:[-][A-Z0-9]+)*)\b/;
+  // More flexible price pattern that handles commas and dots
+  const pricePattern = /R\s*(\d+(?:[.,]\d{3})*(?:\.\d{1,2})?)/i;
   const quantityPattern = /\b(\d+)\s*(?:units?|pcs|boxes|rolls)?\b/i;
   
-  // Blacklist of known non-SKU terms that might be incorrectly matched
-  const skuBlacklist = ['850W', 'N95', 'BRUSH', 'HEAD', 'PAINT', 'DUST'];
+  // IMPROVED: Removed most blacklist items to avoid filtering valid SKUs
+  const skuBlacklist = []; // Empty blacklist to include all products
   
   // Store extracted products
   let products = [];
@@ -299,91 +300,245 @@ function processExtractedText(text, metadata = {}) {
     }
   }
   
-  // Process the document using more flexible detection
+  // Debug for table structure detection
+  let foundTable = false;
+  let tableHeadings = [];
+  
+  // Try to find table headers
   for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    
-    // Skip short lines or headers
-    if (line.length < 10 || 
-        line.includes("Notes:") || 
-        line.includes("Total")) {
-      continue;
+    const line = lines[i].toLowerCase();
+    if (line.includes("sku") && 
+        (line.includes("description") || line.includes("item")) && 
+        (line.includes("price") || line.includes("unit") || line.includes("cost"))) {
+      
+      foundTable = true;
+      tableHeadings = lines[i].split(/\s{2,}/).map(h => h.trim());
+      console.log("Found table headings:", tableHeadings);
+      break;
     }
+  }
+  
+  // IMPROVED: Table-based processing
+  if (foundTable) {
+    console.log("Processing using table structure detection");
     
-    // Create a context by combining current line with adjacent lines
-    // This creates a 3-line window for better context
-    const prevLine = i > 0 ? lines[i-1] : '';
-    const nextLine = i < lines.length - 1 ? lines[i+1] : '';
-    const context = `${prevLine} ${line} ${nextLine}`;
-    
-    // Extract SKU
-    const skuMatch = line.match(skuPattern);
-    if (!skuMatch) continue;
-    
-    // Skip if SKU is in blacklist
-    const sku = skuMatch[1];
-    if (skuBlacklist.some(term => sku.includes(term))) continue;
-    
-    // Validate SKU - must contain at least one letter and one digit
-    if (!/[A-Z]/.test(sku) || !/[0-9]/.test(sku)) continue;
-    
-    // Extract price
-    const priceMatch = context.match(pricePattern);
-    if (!priceMatch) continue;
-    
-    // Process the price (remove commas, convert to float)
-    const price = parseFloat(priceMatch[1].replace(',', ''));
-    
-    // Extract quantity
-    const quantityMatch = context.match(quantityPattern);
-    const quantity = quantityMatch ? parseInt(quantityMatch[1]) : 10; // Default quantity
-    
-    // Extract description with improved logic
-    let description = '';
-    
-    // Try to get description from the line or adjacent lines
-    if (i > 0 && lines[i-1].length > 3 && !lines[i-1].includes("SKU") && 
-        !lines[i-1].match(skuPattern)) {
-      // Use previous line if it looks like a description
-      description = lines[i-1].trim();
-    } else {
-      // Try to extract from current line
-      const parts = line.split(skuMatch[0]);
-      if (parts[0] && parts[0].length > 3) {
-        description = parts[0].trim();
-      } else if (i < lines.length - 1 && !lines[i+1].match(skuPattern)) {
-        // If no description in current line, try next line
-        description = lines[i+1].trim();
+    let tableStartIndex = -1;
+    for (let i = 0; i < lines.length; i++) {
+      if (lines[i].toLowerCase().includes("sku") && 
+          (lines[i].toLowerCase().includes("description") || lines[i].toLowerCase().includes("item"))) {
+        tableStartIndex = i + 1; // Start after the header
+        break;
       }
     }
     
-    // If description is still empty or too short, use a generic one
-    if (description.length < 3) {
-      description = `Product ${sku}`;
+    if (tableStartIndex > 0) {
+      // Process each line after the table header
+      for (let i = tableStartIndex; i < lines.length; i++) {
+        const line = lines[i];
+        
+        // Skip if line is too short or likely a footer
+        if (line.length < 5 || 
+            line.toLowerCase().includes("total") || 
+            line.toLowerCase().includes("notes")) {
+          continue;
+        }
+        
+        // Try to extract SKU
+        const skuMatch = line.match(skuPattern);
+        if (!skuMatch) continue;
+        
+        const sku = skuMatch[1];
+        console.log(`Processing product with SKU: ${sku}`);
+        
+        // Extract price using more flexible pattern
+        const priceMatch = line.match(pricePattern) || 
+                           (i < lines.length - 1 ? lines[i+1].match(pricePattern) : null);
+        
+        if (!priceMatch) {
+          console.log(`No price found for SKU ${sku}, skipping`);
+          continue;
+        }
+        
+        // Process the price (handle both comma and dot as decimal separator)
+        let priceText = priceMatch[1].replace(/,/g, '.');
+        // If there are multiple dots (like 1.000.00), keep only the last one
+        if ((priceText.match(/\./g) || []).length > 1) {
+          const parts = priceText.split('.');
+          priceText = parts.slice(0, -1).join('') + '.' + parts[parts.length-1];
+        }
+        const price = parseFloat(priceText);
+        
+        // Extract quantity with improved pattern
+        const quantityMatch = line.match(quantityPattern) || 
+                              (i > 0 ? lines[i-1].match(quantityPattern) : null) ||
+                              (i < lines.length - 1 ? lines[i+1].match(quantityPattern) : null);
+        
+        const quantity = quantityMatch ? parseInt(quantityMatch[1]) : 10; // Default quantity
+        
+        // IMPROVED: Better description extraction by using surrounding context
+        let description = '';
+        
+        // Create a context window for finding description
+        const prevLine = i > 0 ? lines[i-1] : '';
+        const nextLine = i < lines.length - 1 ? lines[i+1] : '';
+        const contextWindow = [prevLine, line, nextLine];
+        
+        // Look through context for description
+        for (const contextLine of contextWindow) {
+          if (contextLine.length > sku.length && !contextLine.match(/^(R\s*\d+)/) && 
+              !contextLine.toLowerCase().includes("total") &&
+              !contextLine.toLowerCase().includes("note")) {
+            
+            // If line contains the SKU, extract text before or after it
+            if (contextLine.includes(sku)) {
+              const parts = contextLine.split(sku);
+              if (parts[0] && parts[0].trim().length > 3) {
+                description = parts[0].trim();
+              } else if (parts[1] && parts[1].trim().length > 3) {
+                // Remove price information if present
+                description = parts[1].replace(pricePattern, '').trim();
+              }
+            } 
+            // Otherwise, if it's not the same line as the SKU, use it as description
+            else if (contextLine !== line) {
+              description = contextLine.trim();
+            }
+            
+            // If we found a good description, break
+            if (description.length > 3) break;
+          }
+        }
+        
+        // If no description found, use a generic one
+        if (description.length < 3) {
+          description = `Product ${sku}`;
+        }
+        
+        // Clean up description - remove price patterns and extra spaces
+        description = description
+          .replace(pricePattern, '')
+          .replace(quantityPattern, '')
+          .replace(/\s+/g, ' ')
+          .trim();
+        
+        // Log the extracted product data
+        console.log(`Extracted product: SKU=${sku}, Price=${price}, Quantity=${quantity}, Description=${description}`);
+        
+        // Add the product
+        products.push({
+          sku: sku,
+          description: description,
+          unitPrice: price,
+          availableQuantity: quantity,
+          leadTime: 3 // Default lead time
+        });
+      }
     }
+  } 
+  // Fallback to line-by-line processing if table not detected
+  else {
+    console.log("Using line-by-line processing for product extraction");
     
-    // Clean up description - remove price patterns and extra spaces
-    description = description
-      .replace(pricePattern, '')
-      .replace(quantityPattern, '')
-      .replace(/\s+/g, ' ')
-      .trim();
-    
-    // Limit description length
-    if (description.length > 100) {
-      description = description.substring(0, 100);
+    // Process the document using more flexible detection
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      
+      // Skip short lines or headers/footers
+      if (line.length < 10 || 
+          line.toLowerCase().includes("notes:") || 
+          line.toLowerCase().includes("total")) {
+        continue;
+      }
+      
+      // Create a context by combining current line with adjacent lines
+      // This creates a 3-line window for better context
+      const prevLine = i > 0 ? lines[i-1] : '';
+      const nextLine = i < lines.length - 1 ? lines[i+1] : '';
+      const context = `${prevLine} ${line} ${nextLine}`;
+      
+      // Extract SKU with improved pattern
+      const skuMatch = line.match(skuPattern);
+      if (!skuMatch) continue;
+      
+      // Get the SKU
+      const sku = skuMatch[1];
+      console.log(`Found potential SKU: ${sku}`);
+      
+      // Skip if SKU is in blacklist (which is now empty by default)
+      if (skuBlacklist.some(term => sku.includes(term))) {
+        console.log(`Skipping blacklisted SKU: ${sku}`);
+        continue;
+      }
+      
+      // Extract price with improved pattern that handles different formats
+      // Look in the current line and adjacent lines
+      const priceMatch = line.match(pricePattern) || 
+                         context.match(pricePattern);
+      
+      if (!priceMatch) {
+        console.log(`No price found for SKU ${sku}, checking next lines...`);
+        // Look ahead a few more lines for price
+        for (let j = 1; j <= 2; j++) {
+          if (i + j < lines.length) {
+            const priceLine = lines[i + j];
+            const furtherPriceMatch = priceLine.match(pricePattern);
+            if (furtherPriceMatch) {
+              // Process the price
+              let priceText = furtherPriceMatch[1].replace(/,/g, '.');
+              const price = parseFloat(priceText);
+              
+              // Extract quantity
+              const quantityMatch = line.match(quantityPattern) || 
+                                    context.match(quantityPattern) ||
+                                    priceLine.match(quantityPattern);
+              
+              const quantity = quantityMatch ? parseInt(quantityMatch[1]) : 10; // Default quantity
+              
+              // Extract description - more sophisticated with multi-line context
+              let description = extractDescription(lines, i, sku);
+              
+              console.log(`Found delayed price match: SKU=${sku}, Price=${price}, Description=${description}`);
+              
+              // Add the product
+              products.push({
+                sku: sku,
+                description: description,
+                unitPrice: price,
+                availableQuantity: quantity,
+                leadTime: 3 // Default lead time
+              });
+              
+              break; // Found a price, no need to look further
+            }
+          }
+        }
+        continue; // Skip to next line
+      }
+      
+      // Process the price (handle both comma and dot as decimal separator)
+      let priceText = priceMatch[1].replace(/,/g, '.');
+      const price = parseFloat(priceText);
+      
+      // Extract quantity with improved pattern
+      const quantityMatch = line.match(quantityPattern) || 
+                            context.match(quantityPattern);
+      
+      const quantity = quantityMatch ? parseInt(quantityMatch[1]) : 10; // Default quantity
+      
+      // Extract description with improved logic
+      let description = extractDescription(lines, i, sku);
+      
+      console.log(`Extracted product: SKU=${sku}, Price=${price}, Quantity=${quantity}, Description=${description}`);
+      
+      // Add the product
+      products.push({
+        sku: sku,
+        description: description,
+        unitPrice: price,
+        availableQuantity: quantity,
+        leadTime: 3 // Default lead time
+      });
     }
-    
-    // Add the product
-    products.push({
-      sku: sku,
-      description: description,
-      unitPrice: price,
-      availableQuantity: quantity,
-      leadTime: 3 // Default lead time
-    });
-    
-    console.log(`Extracted product: ${sku} - ${price} - ${quantity}`);
   }
   
   // If BuildCore format but no products found, try a more targeted approach
@@ -398,16 +553,26 @@ function processExtractedText(text, metadata = {}) {
         
         // Extract parts
         const skuMatch = line.match(/\b([A-Z0-9]{3,}(?:[-][A-Z0-9]+)*)\b/);
-        const priceMatch = line.match(/R\s*(\d+(?:\.\d{2})?)/);
+        const priceMatch = line.match(/R\s*(\d+(?:[.,]\d{1,2})?)/);
         
         if (skuMatch && priceMatch) {
           // Skip if SKU is in blacklist
           if (skuBlacklist.some(term => skuMatch[1].includes(term))) continue;
           
+          const sku = skuMatch[1];
+          // Clean up price (handle comma as decimal separator)
+          let priceText = priceMatch[1].replace(/,/g, '.');
+          const price = parseFloat(priceText);
+          
+          // Look for description in adjacent lines
+          let description = extractDescription(lines, i, sku);
+          
+          console.log(`BuildCore format extraction: SKU=${sku}, Price=${price}, Description=${description}`);
+          
           products.push({
-            sku: skuMatch[1],
-            description: `Product ${skuMatch[1]}`,
-            unitPrice: parseFloat(priceMatch[1]),
+            sku: sku,
+            description: description,
+            unitPrice: price,
             availableQuantity: 10, // Default
             leadTime: 3
           });
@@ -435,6 +600,83 @@ function processExtractedText(text, metadata = {}) {
     products: uniqueProducts,
     metadata: metadata
   };
+}
+
+// Helper function to extract description from surrounding context
+function extractDescription(lines, currentIndex, sku) {
+  // Look for description in current line and surrounding lines
+  const currentLine = lines[currentIndex];
+  const prevLine = currentIndex > 0 ? lines[currentIndex-1] : '';
+  const nextLine = currentIndex < lines.length - 1 ? lines[currentIndex+1] : '';
+  const prevPrevLine = currentIndex > 1 ? lines[currentIndex-2] : '';
+  
+  // Pattern to filter out SKU, price, and quantity
+  const skuPattern = new RegExp(`\\b${sku}\\b`, 'i');
+  const pricePattern = /R\s*(\d+(?:[.,]\d{3})*(?:\.\d{1,2})?)/i;
+  const quantityPattern = /\b(\d+)\s*(?:units?|pcs|boxes|rolls)?\b/i;
+  
+  // Check current line - split by SKU and use non-empty part
+  if (currentLine.includes(sku)) {
+    const parts = currentLine.split(sku);
+    
+    if (parts[0] && parts[0].trim().length > 3 && !parts[0].match(pricePattern)) {
+      return cleanDescription(parts[0]);
+    }
+    
+    if (parts[1] && parts[1].trim().length > 3 && !parts[1].match(pricePattern)) {
+      return cleanDescription(parts[1]);
+    }
+  }
+  
+  // Check previous line if it doesn't contain the SKU or price
+  if (prevLine && prevLine.length > 5 && 
+      !prevLine.match(skuPattern) && 
+      !prevLine.match(pricePattern) &&
+      !prevLine.toLowerCase().includes("sku") &&
+      !prevLine.toLowerCase().includes("description")) {
+    return cleanDescription(prevLine);
+  }
+  
+  // Check earlier line for potential item description
+  if (prevPrevLine && prevPrevLine.length > 5 && 
+      !prevPrevLine.match(skuPattern) && 
+      !prevPrevLine.match(pricePattern) &&
+      !prevPrevLine.toLowerCase().includes("sku")) {
+    return cleanDescription(prevPrevLine);
+  }
+  
+  // Check next line if it doesn't contain price or SKU
+  if (nextLine && nextLine.length > 5 && 
+      !nextLine.match(skuPattern) && 
+      !nextLine.match(pricePattern) &&
+      !nextLine.toLowerCase().includes("total")) {
+    return cleanDescription(nextLine);
+  }
+  
+  // Fallback: Extract potential description from current line
+  // Remove SKU, price, and quantity information
+  let description = currentLine
+    .replace(skuPattern, '')
+    .replace(pricePattern, '')
+    .replace(quantityPattern, '')
+    .trim();
+  
+  if (description.length > 3) {
+    return cleanDescription(description);
+  }
+  
+  // If all else fails, use a generic description
+  return `Product ${sku}`;
+}
+
+// Helper to clean up description text
+function cleanDescription(text) {
+  return text
+    .replace(/R\s*\d+(?:[.,]\d{3})*(?:\.\d{1,2})?/g, '') // Remove price
+    .replace(/\b\d+\s*(?:units?|pcs|boxes|rolls)\b/ig, '') // Remove quantity
+    .replace(/\s+/g, ' ') // Replace multiple spaces with single space
+    .replace(/^\W+|\W+$/g, '') // Remove leading/trailing non-word chars
+    .trim();
 }
 
 // Get extracted data from a processed quote
