@@ -7,7 +7,11 @@ import { fileURLToPath } from 'url';
 const fixPdfParse = () => {
   // Create directory structure for test data if it doesn't exist
   const __dirname = path.dirname(fileURLToPath(import.meta.url));
-  const testDir = path.join(__dirname, '../../node_modules/pdf-parse/test/data');
+  
+  // IMPORTANT: The pdf-parse library is looking for this file relative to its own directory
+  // not our application directory
+  const pdfParseDir = path.join(__dirname, '../../node_modules/pdf-parse');
+  const testDir = path.join(pdfParseDir, 'test/data');
   
   try {
     // Create directory structure if it doesn't exist
