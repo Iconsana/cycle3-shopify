@@ -62,6 +62,9 @@ async function processPDF(filePath) {
     const result = await pdfParse(dataBuffer, options);
     console.log(`PDF parsed successfully. Extracted ${result.text.length} characters of text`);
     
+    // Debug logging - moved inside the function where result is defined
+    console.log(`Raw extracted text (first 500 chars):\n${result.text.substring(0, 500)}`);
+    
     // Return the extracted data
     return {
       text: result.text,
@@ -95,8 +98,5 @@ async function processPDF(filePath) {
     };
   }
 }
-
-// Add this debug logging in src/utils/pdf-parser.js
-console.log(`Raw extracted text (first 500 chars):\n${result.text.substring(0, 500)}`);
 
 export default processPDF;
