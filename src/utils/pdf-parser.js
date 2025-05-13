@@ -96,4 +96,7 @@ async function processPDF(filePath) {
   }
 }
 
+// Add this debug logging in src/utils/pdf-parser.js
+console.log(`Raw extracted text (first 500 chars):\n${result.text.substring(0, 500)}`);
+
 export default processPDF;
