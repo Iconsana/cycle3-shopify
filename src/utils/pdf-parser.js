@@ -5,28 +5,37 @@ import { fileURLToPath } from 'url';
 
 // Fix for pdf-parse library trying to access test files
 const fixPdfParse = () => {
-  // Create directory structure for test data if it doesn't exist
+  // Create directory structure for test data in node_modules
   const __dirname = path.dirname(fileURLToPath(import.meta.url));
+  const moduleTestDir = path.join(__dirname, '../../node_modules/pdf-parse/test/data');
   
-  // IMPORTANT: The pdf-parse library is looking for this file relative to its own directory
-  // not our application directory
-  const pdfParseDir = path.join(__dirname, '../../node_modules/pdf-parse');
-  const testDir = path.join(pdfParseDir, 'test/data');
+  // Also create the test directory relative to current working directory
+  const cwdTestDir = path.join(process.cwd(), 'test/data');
   
   try {
-    // Create directory structure if it doesn't exist
-    if (!fs.existsSync(testDir)) {
-      fs.mkdirSync(testDir, { recursive: true });
+    // Create directory structures if they don't exist
+    if (!fs.existsSync(moduleTestDir)) {
+      fs.mkdirSync(moduleTestDir, { recursive: true });
     }
     
-    // Create empty test file that pdf-parse looks for
-    const testFile = path.join(testDir, '05-versions-space.pdf');
-    if (!fs.existsSync(testFile)) {
-      // Create an empty PDF file (just the header)
-      fs.writeFileSync(testFile, '%PDF-1.3\n%¥±ë\n1 0 obj\n<</Type/Catalog/Pages 2 0 R>>\nendobj\n2 0 obj\n<</Type/Pages/Kids[]/Count 0>>\nendobj\nxref\n0 3\n0000000000 65535 f \n0000000015 00000 n \n0000000060 00000 n \ntrailer\n<</Size 3/Root 1 0 R>>\nstartxref\n110\n%%EOF\n');
+    if (!fs.existsSync(cwdTestDir)) {
+      fs.mkdirSync(cwdTestDir, { recursive: true });
     }
     
-    console.log('Fixed pdf-parse test file issue');
+    // Create empty test file in both locations
+    const testPdfContent = '%PDF-1.3\n%¥±ë\n1 0 obj\n<</Type/Catalog/Pages 2 0 R>>\nendobj\n2 0 obj\n<</Type/Pages/Kids[]/Count 0>>\nendobj\nxref\n0 3\n0000000000 65535 f \n0000000015 00000 n \n0000000060 00000 n \ntrailer\n<</Size 3/Root 1 0 R>>\nstartxref\n110\n%%EOF\n';
+    
+    const moduleTestFile = path.join(moduleTestDir, '05-versions-space.pdf');
+    if (!fs.existsSync(moduleTestFile)) {
+      fs.writeFileSync(moduleTestFile, testPdfContent);
+    }
+    
+    const cwdTestFile = path.join(cwdTestDir, '05-versions-space.pdf');
+    if (!fs.existsSync(cwdTestFile)) {
+      fs.writeFileSync(cwdTestFile, testPdfContent);
+    }
+    
+    console.log('Fixed pdf-parse test file issue in both module and working directories');
     return true;
   } catch (error) {
     console.error('Error fixing pdf-parse test file:', error);
@@ -53,6 +62,16 @@ async function processPDF(filePath) {
     
     // Import pdf-parse dynamically
     const pdfParse = (await import('pdf-parse')).default;
+    
+    // Force the library to use our existing test file by monkey-patching require.resolve
+    // This is a hack but should work for this specific issue
+    const originalResolve = require.resolve;
+    require.resolve = function(path) {
+      if (path === './test/data/05-versions-space.pdf') {
+        return require.resolve.paths('./test/data/05-versions-space.pdf')[0] + '/05-versions-space.pdf';
+      }
+      return originalResolve.apply(this, arguments);
+    };
     
     // Enhanced options for better text extraction
     const options = {
