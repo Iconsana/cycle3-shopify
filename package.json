@@ -30,8 +30,8 @@
     "react-dom": "^18.2.0",
     "uuid": "^9.0.0",
     "@anthropic-ai/sdk": "^0.18.0",
-      "pdf-img-convert": "^1.2.1"
-
+    "pdf-img-convert": "^1.2.1",
+    "canvas": "^2.11.2"
   },
   "devDependencies": {
     "nodemon": "^3.0.2"
