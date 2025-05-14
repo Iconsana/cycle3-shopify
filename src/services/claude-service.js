@@ -3,10 +3,18 @@ import Anthropic from '@anthropic-ai/sdk';
 import fs from 'fs';
 import path from 'path';
 
-// Create the Anthropic client
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-});
+// Check if API key is set and log status (not the actual key)
+const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
+if (!ANTHROPIC_API_KEY) {
+  console.warn('WARNING: ANTHROPIC_API_KEY environment variable is not set. Claude functionality will not work.');
+} else {
+  console.log('Anthropic API key is configured and available');
+}
+
+// Create the Anthropic client with better error handling
+const anthropic = ANTHROPIC_API_KEY ? new Anthropic({
+  apiKey: ANTHROPIC_API_KEY,
+}) : null;
 
 /**
  * Processes a quote document using Claude Vision
@@ -15,6 +23,11 @@ const anthropic = new Anthropic({
  */
 export async function processQuoteWithClaude(filePath) {
   try {
+    // Check if Anthropic client is available
+    if (!anthropic) {
+      throw new Error('Anthropic API key not configured. Please set the ANTHROPIC_API_KEY environment variable.');
+    }
+
     // Read the file and convert to base64
     const fileContent = fs.readFileSync(filePath);
     const base64Content = fileContent.toString('base64');
@@ -70,12 +83,19 @@ export async function processQuoteWithClaude(filePath) {
     }
     
     // Parse the JSON array
-    const extractedProducts = JSON.parse(jsonMatch[0]);
-    console.log(`Extracted ${extractedProducts.length} products from document`);
-    
-    return extractedProducts;
+    try {
+      const extractedProducts = JSON.parse(jsonMatch[0]);
+      console.log(`Extracted ${extractedProducts.length} products from document`);
+      
+      return extractedProducts;
+    } catch (jsonError) {
+      console.error('Error parsing JSON from Claude response:', jsonError);
+      console.log('Raw response text:', textResponse);
+      return [];
+    }
   } catch (error) {
     console.error('Error processing quote with Claude:', error);
-    throw error;
+    // Return empty array instead of throwing to allow the application to continue
+    return [];
   }
 }
