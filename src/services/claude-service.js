@@ -103,12 +103,13 @@ Do not include any explanations - ONLY the JSON array.`
     const textResponse = response.content[0].text;
     console.log("Claude raw response:", textResponse.substring(0, 500) + "...");
     
-    // Find the JSON array in the response - handle both regular and indented JSON
-    const jsonMatch = textResponse.match(/\[\s*\{[\s\S]*\}\s*\]/);
-    if (!jsonMatch) {
-      console.log("No valid JSON found in response");
-      return [];
-    }
+   // Find the JSON array in the response - handle both regular and indented JSON
+const jsonMatch = textResponse.match(/\[\s*\{[\s\S]*\}\s*\]/);
+if (!jsonMatch) {
+  console.log("No valid JSON found in response. Full response:");
+  console.log(textResponse); // Add this to see full response
+  return [];
+}
     
     // Parse the JSON array
     try {
