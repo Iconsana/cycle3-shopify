@@ -32,7 +32,7 @@ export async function processQuoteWithClaude(filePath) {
     
     // Call Claude API with a more detailed prompt that handles various quote formats
     const response = await anthropic.messages.create({
-      model: "claude-3-sonnet-20240229",
+      model: "claude-3-sonnet-20240229-v1:0",
       max_tokens: 4000,
       messages: [
         {
