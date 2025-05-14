@@ -1,9 +1,9 @@
-// src/services/claude-service.js
+// src/services/claude-service.js - Updated to handle PDFs correctly
 import Anthropic from '@anthropic-ai/sdk';
 import fs from 'fs';
 import path from 'path';
 import { createCanvas, loadImage } from 'canvas';
-import pdf from 'pdf-img-convert';
+import pdfImgConvert from 'pdf-img-convert'; // Add this import for PDF conversion
 
 // Define available Claude models
 const CLAUDE_MODELS = {
@@ -28,24 +28,59 @@ const anthropic = new Anthropic({
  */
 export async function processQuoteWithClaude(filePath) {
   try {
-    // Read the file and convert to base64
-    const fileContent = fs.readFileSync(filePath);
-    const base64Content = fileContent.toString('base64');
-    
-    // Determine media type based on file extension
+    // Determine file type based on extension
     const fileExt = path.extname(filePath).toLowerCase();
-    let mediaType = 'application/pdf';
-    if (fileExt === '.jpg' || fileExt === '.jpeg') {
-      mediaType = 'image/jpeg';
-    } else if (fileExt === '.png') {
-      mediaType = 'image/png';
+    let base64Content;
+    let mediaType;
+    
+    // If PDF, convert to PNG first
+    if (fileExt === '.pdf') {
+      console.log('Processing PDF file: Converting to PNG before sending to Claude');
+      
+      // Convert the first page of the PDF to PNG
+      const pdfImgOptions = {
+        width: 1600, // High resolution for better OCR
+        height: 2000 // Approximate height based on width
+      };
+      
+      try {
+        const pngPages = await pdfImgConvert.convert(filePath, pngImgOptions);
+        
+        if (pngPages && pngPages.length > 0) {
+          // Use the first page as our image
+          base64Content = Buffer.from(pngPages[0]).toString('base64');
+          mediaType = 'image/png';
+          console.log('Successfully converted PDF to PNG image');
+        } else {
+          throw new Error('Failed to convert PDF to PNG: No pages returned');
+        }
+      } catch (pdfConvertError) {
+        console.error('Error converting PDF to image:', pdfConvertError);
+        throw pdfConvertError;
+      }
+    } else {
+      // For direct image files (JPG, PNG, etc.)
+      const fileContent = fs.readFileSync(filePath);
+      base64Content = fileContent.toString('base64');
+      
+      if (fileExt === '.jpg' || fileExt === '.jpeg') {
+        mediaType = 'image/jpeg';
+      } else if (fileExt === '.png') {
+        mediaType = 'image/png';
+      } else if (fileExt === '.gif') {
+        mediaType = 'image/gif';
+      } else if (fileExt === '.webp') {
+        mediaType = 'image/webp';
+      } else {
+        throw new Error(`Unsupported file format: ${fileExt}`);
+      }
     }
     
-    console.log(`Processing ${filePath} as ${mediaType}`);
+    console.log(`Sending file as ${mediaType} to Claude`);
     
-    // Call Claude API with a detailed prompt that handles various quote formats
+    // Call Claude API with a detailed prompt
     const response = await anthropic.messages.create({
-      model: CLAUDE_MODELS.DEFAULT, // Use the latest model
+      model: CLAUDE_MODELS.DEFAULT,
       max_tokens: 4000,
       messages: [
         {
@@ -105,13 +140,13 @@ Do not include any explanations - ONLY the JSON array.`
     const textResponse = response.content[0].text;
     console.log("Claude raw response:", textResponse.substring(0, 500) + "...");
     
-   // Find the JSON array in the response - handle both regular and indented JSON
-const jsonMatch = textResponse.match(/\[\s*\{[\s\S]*\}\s*\]/);
-if (!jsonMatch) {
-  console.log("No valid JSON found in response. Full response:");
-  console.log(textResponse); // Add this to see full response
-  return [];
-}
+    // Find the JSON array in the response
+    const jsonMatch = textResponse.match(/\[\s*\{[\s\S]*\}\s*\]/);
+    if (!jsonMatch) {
+      console.log("No valid JSON found in response. Full response:");
+      console.log(textResponse);
+      return [];
+    }
     
     // Parse the JSON array
     try {
