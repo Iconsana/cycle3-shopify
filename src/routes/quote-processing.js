@@ -1265,4 +1265,37 @@ router.get('/:quoteId/debug', async (req, res) => {
   }
 });
 
+// Debug endpoint to test Claude directly
+router.post('/debug-claude', upload.single('quoteFile'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file uploaded' });
+    }
+    
+    const filePath = req.file.path;
+    console.log(`Debug test with file: ${filePath}`);
+    
+    // Process with Claude
+    const extractedProducts = await processQuoteWithClaude(filePath);
+    
+    // Return detailed response
+    res.json({
+      success: true,
+      fileInfo: {
+        originalName: req.file.originalname,
+        size: req.file.size,
+        mimeType: req.file.mimetype
+      },
+      extractedProducts,
+      productsCount: extractedProducts.length
+    });
+  } catch (error) {
+    console.error('Debug Claude test error:', error);
+    res.status(500).json({ 
+      error: error.message,
+      stack: error.stack
+    });
+  }
+});
+
 export default router;
