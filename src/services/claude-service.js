@@ -1,9 +1,9 @@
 // src/services/claude-service.js
-import { AnthropicClient } from '@anthropic/sdk';
+import Anthropic from '@anthropic-ai/sdk';
 import fs from 'fs';
 import path from 'path';
 
-// To this:
+// Create the Anthropic client
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 });
