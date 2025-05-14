@@ -1265,6 +1265,28 @@ router.get('/:quoteId/debug', async (req, res) => {
   }
 });
 
+// Debug endpoint to view a quote's raw products 
+router.get('/:quoteId/products-raw', async (req, res) => {
+  try {
+    const { quoteId } = req.params;
+    const db = await getDB();
+    await db.read();
+    
+    const quote = db.data.quotes.find(q => q.id === quoteId);
+    
+    if (!quote) {
+      return res.status(404).json({ error: 'Quote not found' });
+    }
+    
+    res.json({
+      id: quoteId,
+      products: quote.products || []
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Debug endpoint to test Claude directly
 router.post('/debug-claude', upload.single('quoteFile'), async (req, res) => {
   try {
