@@ -1,5 +1,5 @@
 // src/services/claude-service.js
-import Anthropic from '@anthropic-ai/sdk';
+import { AnthropicClient } from '@anthropic/sdk';
 import fs from 'fs';
 import path from 'path';
 
