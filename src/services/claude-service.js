@@ -3,6 +3,17 @@ import Anthropic from '@anthropic-ai/sdk';
 import fs from 'fs';
 import path from 'path';
 
+// Define available Claude models
+const CLAUDE_MODELS = {
+  // Current models as of May 2025
+  CLAUDE_3_7_SONNET: 'claude-3-7-sonnet-20250219',
+  CLAUDE_3_5_SONNET: 'claude-3-5-sonnet-20241022',
+  CLAUDE_3_5_SONNET_ORIGINAL: 'claude-3-5-sonnet-20240620',
+  CLAUDE_3_5_HAIKU: 'claude-3-5-haiku-20241022',
+  // Default model to use
+  DEFAULT: 'claude-3-7-sonnet-20250219' // Using the latest model
+};
+
 // Create the Anthropic client
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
@@ -29,65 +40,10 @@ export async function processQuoteWithClaude(filePath) {
     }
     
     console.log(`Processing ${filePath} as ${mediaType}`);
-
-    // claude-service.js - Update model management
-const CLAUDE_MODELS = {
-  // Current models as of May 2025
-  CLAUDE_3_7_SONNET: 'claude-3-7-sonnet-20250219',
-  CLAUDE_3_5_SONNET: 'claude-3-5-sonnet-20241022',
-  CLAUDE_3_5_SONNET_ORIGINAL: 'claude-3-5-sonnet-20240620',
-  CLAUDE_3_5_HAIKU: 'claude-3-5-haiku-20241022',
-  // Add a default model that can be easily updated
-  DEFAULT: 'claude-3-5-sonnet-20241022'
-};
-
-class ClaudeService {
-  constructor(config = {}) {
-    this.client = new Anthropic({
-      apiKey: process.env.ANTHROPIC_API_KEY,
-      ...config
-    });
     
-    // Use the model from config or default to current Claude 3.5 Sonnet
-    this.defaultModel = config.model || CLAUDE_MODELS.DEFAULT;
-  }
-  
-  // Update all methods to use this.defaultModel
-  async generateResponse(prompt, options = {}) {
-    try {
-      const message = await this.client.messages.create({
-        max_tokens: options.maxTokens || 1024,
-        messages: [{ role: 'user', content: prompt }],
-        model: options.model || this.defaultModel, // Use default model if not specified
-        ...options
-      });
-      
-      return message;
-    } catch (error) {
-      console.error('Claude API error:', error);
-      throw this.handleApiError(error);
-    }
-  }
-  
-  // Add error handling helper method
-  handleApiError(error) {
-    // Check for model-specific errors
-    if (error.status === 404 && error.message.includes('model:')) {
-      console.error('Model not found. Using fallback model.');
-      // Return a more descriptive error for model issues
-      return new Error(`Model not found. Please use one of: ${Object.values(CLAUDE_MODELS).join(', ')}`);
-    }
-    
-    // Handle other types of errors
-    return error;
-  }
-}
-
-module.exports = { ClaudeService, CLAUDE_MODELS };
-    
-    // Call Claude API with a more detailed prompt that handles various quote formats
+    // Call Claude API with a detailed prompt that handles various quote formats
     const response = await anthropic.messages.create({
-      model: "claude-3-sonnet-20240229-v1:0",
+      model: CLAUDE_MODELS.DEFAULT, // Use the latest model
       max_tokens: 4000,
       messages: [
         {
@@ -177,3 +133,6 @@ Do not include headers, explanations, or notes - ONLY return the JSON array.`
     return [];
   }
 }
+
+// Export the models for reference
+export { CLAUDE_MODELS };
