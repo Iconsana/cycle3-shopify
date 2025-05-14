@@ -85,7 +85,6 @@ For unclear SKUs, use the most likely text. For missing quantities, use 1 or 10.
 Price formats might include R100, $100, etc. - extract just the number.
 
 Do not include any explanations - ONLY the JSON array.`
-Do not include headers, explanations, or notes - ONLY return the JSON array.`
             },
             {
               type: "image",
