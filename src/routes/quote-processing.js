@@ -146,6 +146,7 @@ router.post('/:quoteId/process', async (req, res) => {
     res.status(500).json({ error: 'Quote processing failed', message: error.message });
   }
 });
+
 async function processQuoteInBackground(quoteId, filePath, mimeType) {
   try {
     console.log(`Starting background processing for quote ${quoteId}...`);
@@ -168,7 +169,7 @@ async function processQuoteInBackground(quoteId, filePath, mimeType) {
     db.data.quotes[quoteIndex].status = 'processing';
     await db.write();
     
-    // Process using Claude instead of the old approach
+    // Process using Claude for both PDF and images
     let extractedProducts = [];
     
     try {
@@ -193,10 +194,14 @@ async function processQuoteInBackground(quoteId, filePath, mimeType) {
     const updatedQuoteIndex = db.data.quotes.findIndex(q => q.id === quoteId);
     
     if (updatedQuoteIndex !== -1) {
-      db.data.quotes[updatedQuoteIndex].status = 'processed';
+      db.data.quotes[updatedQuoteIndex].status = extractedProducts.length > 0 ? 'processed' : 'error';
       db.data.quotes[updatedQuoteIndex].processedAt = new Date().toISOString();
       db.data.quotes[updatedQuoteIndex].products = extractedProducts;
       db.data.quotes[updatedQuoteIndex].ocrConfidence = 0.95; // Claude is usually very accurate
+      
+      if (extractedProducts.length === 0) {
+        db.data.quotes[updatedQuoteIndex].error = 'No products could be extracted from this quote';
+      }
       
       await db.write();
       console.log(`Quote ${quoteId} processing completed and saved to database`);
@@ -206,6 +211,21 @@ async function processQuoteInBackground(quoteId, filePath, mimeType) {
     
   } catch (error) {
     console.error(`Background processing error for quote ${quoteId}:`, error);
+    
+    // Update DB with error status
+    try {
+      const db = await getDB();
+      await db.read();
+      
+      const quoteIndex = db.data.quotes.findIndex(q => q.id === quoteId);
+      if (quoteIndex !== -1) {
+        db.data.quotes[quoteIndex].status = 'error';
+        db.data.quotes[quoteIndex].error = error.message;
+        await db.write();
+      }
+    } catch (dbError) {
+      console.error(`Failed to update quote status after error:`, dbError);
+    }
   }
 }
 
