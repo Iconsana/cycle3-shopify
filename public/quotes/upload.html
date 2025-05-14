@@ -559,13 +559,13 @@
             }
         }
         
-        // Display extracted products
-      // Display extracted products
-function displayExtractedProducts(products) {
+    function displayExtractedProducts(products) {
     const tableBody = document.getElementById('extractedProductsTable');
     const markup = parseInt(document.getElementById('markupSlider').value);
     
-    if (products.length === 0) {
+    console.log("Products to display:", products); // Add this debug line
+    
+    if (!products || products.length === 0) {  // Modified to also check for null/undefined
         tableBody.innerHTML = `
             <tr>
                 <td colspan="6" class="px-6 py-4 text-sm text-gray-500 text-center">
