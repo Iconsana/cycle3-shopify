@@ -38,7 +38,8 @@ console.log('Environment Check:', {
   hasShopifySecret: !!process.env.SHOPIFY_API_SECRET,
   appUrl: process.env.APP_URL,
   shopName: process.env.SHOPIFY_SHOP_NAME,
-  hasMongoUri: !!process.env.MONGODB_URI
+  hasMongoUri: !!process.env.MONGODB_URI,
+    hasAnthropicKey: !!process.env.ANTHROPIC_API_KEY
 });
 
 // Initialize Express app
