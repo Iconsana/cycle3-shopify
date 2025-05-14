@@ -2,6 +2,8 @@
 import Anthropic from '@anthropic-ai/sdk';
 import fs from 'fs';
 import path from 'path';
+import { createCanvas, loadImage } from 'canvas';
+import pdf from 'pdf-img-convert';
 
 // Define available Claude models
 const CLAUDE_MODELS = {
