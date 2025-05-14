@@ -51,33 +51,40 @@ export async function processQuoteWithClaude(filePath) {
           content: [
             {
               type: "text",
-              text: `Please extract all product information from this supplier quote. 
+              text: `I need you to extract product information from this supplier quote or invoice. 
 
-I need you to identify:
-1. SKU/Product codes
-2. Product descriptions
-3. Quantities (if present)
-4. Unit prices
-5. Total prices (if available)
+This document contains product listings with information like SKUs, descriptions and prices.
 
-The document might be structured as a table, list, or in various formats. Please be thorough and extract all products you can identify.
+IMPORTANT: Extract ALL products found in the document, even if the formatting is unclear.
 
-Format your response as a valid JSON array where each product is an object with the following fields:
+Look for:
+1. Product codes or SKUs (alphanumeric codes identifying products)
+2. Product descriptions or names
+3. Unit prices (numbers that look like prices, often with currency symbols)
+4. Quantities (if present)
+
+FORMAT YOUR RESPONSE AS A JSON ARRAY LIKE THIS, with no additional text:
 [
   {
-    "sku": "The product SKU or code",
-    "description": "The product description",
-    "quantity": 1, (use 1 if not specified)
-    "unitPrice": 0.00, (the price per unit as a number)
-    "availableQuantity": 10 (use 10 if stock level is not specified)
+    "sku": "ABC123",
+    "description": "Product description here",
+    "unitPrice": 10.99,
+    "availableQuantity": 5
   },
-  ... more products
+  {
+    "sku": "XYZ456", 
+    "description": "Another product",
+    "unitPrice": 25.50,
+    "availableQuantity": 10
+  }
 ]
 
-If no products are found, return an empty array: []
+If you can't find any product SKUs and prices, return an empty array: []
 
-Pay special attention to pricing information and ensure it's correctly associated with the right product. Common formats include "R100", "$100", "100 ZAR", etc.
+For unclear SKUs, use the most likely text. For missing quantities, use 1 or 10.
+Price formats might include R100, $100, etc. - extract just the number.
 
+Do not include any explanations - ONLY the JSON array.`
 Do not include headers, explanations, or notes - ONLY return the JSON array.`
             },
             {
