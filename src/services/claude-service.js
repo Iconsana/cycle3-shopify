@@ -38,13 +38,14 @@ export async function processQuoteWithClaude(filePath) {
       console.log('Processing PDF file: Converting to PNG before sending to Claude');
       
       // Convert the first page of the PDF to PNG
-      const pdfImgOptions = {
-        width: 1600, // High resolution for better OCR
-        height: 2000 // Approximate height based on width
+      const pdfImgOptions = {  // Define options here
+        width: 1600,  // High resolution for better OCR
+        height: 2000  // Approximate height based on width
       };
       
       try {
-        const pngPages = await pdfImgConvert.convert(filePath, pngImgOptions);
+        // Use pdfImgOptions here (not pngImgOptions)
+        const pngPages = await pdfImgConvert.convert(filePath, pdfImgOptions); 
         
         if (pngPages && pngPages.length > 0) {
           // Use the first page as our image
@@ -135,6 +136,7 @@ Do not include any explanations - ONLY the JSON array.`
         }
       ]
     });
+    
     
     // Parse the response to extract the JSON
     const textResponse = response.content[0].text;
