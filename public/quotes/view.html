@@ -300,6 +300,19 @@
             button.textContent = 'Create Products in Shopify';
         }
     }
+
+function setupStatusPolling(quoteId) {
+  const pollInterval = setInterval(async () => {
+    const response = await fetch(`/api/quotes/${quoteId}`);
+    const quoteData = await response.json();
+    
+    if (quoteData.status !== 'processing') {
+      // Processing completed or failed, update UI
+      updateUI(quoteData);
+      clearInterval(pollInterval); // Stop polling
+    }
+  }, 3000); // Check every 3 seconds
+}
     
     // Initialize the page
     document.addEventListener('DOMContentLoaded', loadQuoteData);
