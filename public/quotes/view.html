@@ -9,323 +9,449 @@
 <body class="bg-gray-100">
     <div class="container mx-auto px-4 py-8">
         <h1 class="text-3xl font-bold mb-8">Quote Viewer</h1>
-<div id="quoteViewer" class="mb-8">
-        <div class="bg-white rounded-lg shadow-md p-6 mb-4">
-            <div id="quoteInfo">
-                <h2 class="text-xl font-semibold mb-4" id="supplierName">Loading...</h2>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                        <p><span class="font-medium">Status:</span> <span id="quoteStatus">-</span></p>
-                        <p><span class="font-medium">Uploaded:</span> <span id="uploadDate">-</span></p>
-                        <p><span class="font-medium">Processed:</span> <span id="processDate">-</span></p>
+        
+        <!-- Debug Panel -->
+        <div id="debugPanel" class="bg-gray-800 text-white p-4 mb-4 rounded hidden">
+            <h3 class="font-bold mb-2">Debug Info</h3>
+            <pre id="debugInfo" class="text-xs overflow-auto max-h-40"></pre>
+        </div>
+        
+        <!-- Refresh Button -->
+        <div class="flex justify-end mb-4">
+            <button id="refreshData" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
+                Refresh Data
+            </button>
+        </div>
+        
+        <div id="quoteViewer" class="mb-8">
+            <div class="bg-white rounded-lg shadow-md p-6 mb-4">
+                <div id="quoteInfo">
+                    <h2 class="text-xl font-semibold mb-4" id="supplierName">Loading...</h2>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <p><span class="font-medium">Status:</span> <span id="quoteStatus">-</span></p>
+                            <p><span class="font-medium">Uploaded:</span> <span id="uploadDate">-</span></p>
+                            <p><span class="font-medium">Processed:</span> <span id="processDate">-</span></p>
+                        </div>
+                        <div>
+                            <p><span class="font-medium">File:</span> <span id="fileName">-</span></p>
+                            <p><span class="font-medium">Products Found:</span> <span id="productsCount">-</span></p>
+                        </div>
                     </div>
-                    <div>
-                        <p><span class="font-medium">File:</span> <span id="fileName">-</span></p>
-                        <p><span class="font-medium">Products Found:</span> <span id="productsCount">-</span></p>
+                </div>
+            </div>
+            
+            <div class="bg-white rounded-lg shadow-md p-6">
+                <div class="flex justify-between items-center mb-6">
+                    <h2 class="text-xl font-semibold">Extracted Products</h2>
+                    <div class="flex items-center">
+                        <label class="mr-2 text-sm font-medium">Markup:</label>
+                        <input
+                            type="range"
+                            min="0"
+                            max="200"
+                            value="50"
+                            id="markupSlider"
+                            class="w-32 mr-2"
+                        />
+                        <span class="text-sm font-medium w-12" id="markupValue">50%</span>
                     </div>
+                </div>
+                
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">SKU</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Supplier Price</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Shopify Price</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quantity</th>
+                            </tr>
+                        </thead>
+                        <tbody id="productsTable" class="bg-white divide-y divide-gray-200">
+                            <tr>
+                                <td colspan="5" class="px-6 py-4 text-center text-gray-500">Loading products...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                
+                <div class="mt-6 flex justify-end">
+                    <button id="createProductsBtn" class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded">
+                        Create Products in Shopify
+                    </button>
                 </div>
             </div>
         </div>
         
-        <div class="bg-white rounded-lg shadow-md p-6">
-            <div class="flex justify-between items-center mb-6">
-                <h2 class="text-xl font-semibold">Extracted Products</h2>
-                <div class="flex items-center">
-                    <label class="mr-2 text-sm font-medium">Markup:</label>
-                    <input
-                        type="range"
-                        min="0"
-                        max="200"
-                        value="50"
-                        id="markupSlider"
-                        class="w-32 mr-2"
-                    />
-                    <span class="text-sm font-medium w-12" id="markupValue">50%</span>
-                </div>
-            </div>
-            
-            <div class="overflow-x-auto">
-                <table class="min-w-full divide-y divide-gray-200">
-                    <thead class="bg-gray-50">
-                        <tr>
-                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">SKU</th>
-                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
-                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Supplier Price</th>
-                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Shopify Price</th>
-                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quantity</th>
-                        </tr>
-                    </thead>
-                    <tbody id="productsTable" class="bg-white divide-y divide-gray-200">
-                        <tr>
-                            <td colspan="5" class="px-6 py-4 text-center text-gray-500">Loading products...</td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-            
-            <div class="mt-6 flex justify-end">
-                <button id="createProductsBtn" class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded">
-                    Create Products in Shopify
-                </button>
-            </div>
+        <div id="errorMessage" class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-8 hidden">
+            <p class="font-bold">Error</p>
+            <p id="errorText"></p>
+        </div>
+        
+        <div class="flex justify-between">
+            <a href="/quotes" class="text-blue-500 hover:underline">Back to Quotes</a>
+            <a href="/quotes/upload" class="text-blue-500 hover:underline">Upload New Quote</a>
         </div>
     </div>
-    
-    <div id="errorMessage" class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-8 hidden">
-        <p class="font-bold">Error</p>
-        <p id="errorText"></p>
-    </div>
-    
-    <div class="flex justify-between">
-        <a href="/quotes" class="text-blue-500 hover:underline">Back to Quotes</a>
-        <a href="/quotes/upload" class="text-blue-500 hover:underline">Upload New Quote</a>
-    </div>
-</div>
 
-    <!-- Add to your quotes/view.html or upload.html page -->
-<button id="refreshData" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
-  Refresh Data
-</button>
-
-<script>
-  document.getElementById('refreshData').addEventListener('click', () => {
-    // Reload the current quote data
-    const quoteId = /* get your current quote ID */;
-    loadQuoteData(quoteId);
-  });
-</script>
-
-<script>
-    // Get quote ID from URL
-    function getQuoteId() {
-        const urlParams = new URLSearchParams(window.location.search);
-        return urlParams.get('id') || prompt('Please enter the quote ID:', '1747299483312');
-    }
-    
-    // Calculate price with markup
-    function calculatePrice(basePrice, markup) {
-        return (basePrice * (1 + markup / 100)).toFixed(2);
-    }
-    
-    // Format date
-    function formatDate(dateString) {
-        if (!dateString) return '-';
-        return new Date(dateString).toLocaleString();
-    }
-    
-    // Show error
-    function showError(message) {
-        const errorDiv = document.getElementById('errorMessage');
-        const errorText = document.getElementById('errorText');
+    <script>
+        // Toggle debug mode
+        const DEBUG_MODE = true;
         
-        errorText.textContent = message;
-        errorDiv.classList.remove('hidden');
-        
-        // Hide quote viewer
-        document.getElementById('quoteViewer').classList.add('hidden');
-    }
-    
-    // Render products table
-    function renderProducts(products, markup) {
-        const tableBody = document.getElementById('productsTable');
-        
-        if (!products || products.length === 0) {
-            tableBody.innerHTML = `
-                <tr>
-                    <td colspan="5" class="px-6 py-4 text-center text-gray-500">
-                        No products were extracted from this quote.
-                    </td>
-                </tr>
-            `;
-            return;
-        }
-        
-        tableBody.innerHTML = products.map((product, index) => {
-            const sku = product.sku || 'N/A';
-            const description = product.description || 'No description';
-            const unitPrice = parseFloat(product.unitPrice) || 0;
-            const shopifyPrice = calculatePrice(unitPrice, markup);
-            const quantity = product.availableQuantity || 0;
+        // Debug function
+        function debug(message, data = null) {
+            if (!DEBUG_MODE) return;
             
-            return `
-                <tr class="${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}">
-                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                        ${sku}
-                    </td>
-                    <td class="px-6 py-4 text-sm text-gray-500">
-                        ${description}
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        R${unitPrice.toFixed(2)}
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 shopify-price" data-unit-price="${unitPrice}">
-                        R${shopifyPrice}
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        ${quantity}
-                    </td>
-                </tr>
-            `;
-        }).join('');
-    }
-    
-function updateQuoteInfo(quoteData) {
-  document.getElementById('supplierName').textContent = quoteData.supplierName || 'Unknown Supplier';
-  document.getElementById('quoteStatus').textContent = quoteData.status || '-';
-  document.getElementById('uploadDate').textContent = formatDate(quoteData.uploadedAt);
-  document.getElementById('processDate').textContent = formatDate(quoteData.processedAt);
-  document.getElementById('fileName').textContent = quoteData.originalName || '-';
-  document.getElementById('productsCount').textContent = (quoteData.products || []).length.toString();
-  
-  // Style status based on value
-  const statusElement = document.getElementById('quoteStatus');
-  if (quoteData.status === 'processed') {
-    statusElement.className = 'inline-block px-2 py-1 bg-green-100 text-green-800 rounded text-xs';
-  } else if (quoteData.status === 'processing') {
-    statusElement.className = 'inline-block px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs';
-    
-    // Show a message about processing
-    document.getElementById('productsTable').innerHTML = `
-      <tr>
-        <td colspan="5" class="px-6 py-4 text-center">
-          <div class="animate-spin inline-block h-8 w-8 border-4 border-blue-500 border-t-transparent rounded-full mr-2"></div>
-          Quote is still being processed. Please wait or refresh in a moment...
-        </td>
-      </tr>
-    `;
-  } else if (quoteData.status === 'error') {
-    statusElement.className = 'inline-block px-2 py-1 bg-red-100 text-red-800 rounded text-xs';
-  }
-}
-    
-    // Handle markup slider
-    function setupMarkupSlider(products) {
-        const slider = document.getElementById('markupSlider');
-        const valueDisplay = document.getElementById('markupValue');
-        
-        slider.addEventListener('input', function() {
-            const markup = parseInt(this.value);
-            valueDisplay.textContent = `${markup}%`;
+            console.log(message, data);
             
-            // Update Shopify prices
-            document.querySelectorAll('.shopify-price').forEach(cell => {
-                const unitPrice = parseFloat(cell.getAttribute('data-unit-price'));
-                const shopifyPrice = calculatePrice(unitPrice, markup);
-                cell.textContent = `R${shopifyPrice}`;
-            });
-        });
-    }
-    
- async function loadQuoteData() {
-  try {
-    const quoteId = getQuoteId();
-    
-    if (!quoteId) {
-      showError('No quote ID provided');
-      return;
-    }
-    
-    console.log('Loading quote data for ID:', quoteId);
-    
-    const response = await fetch(`/api/quotes/${quoteId}`);
-    
-    if (!response.ok) {
-      throw new Error(`Failed to fetch quote: ${response.status}`);
-    }
-    
-    const quoteData = await response.json();
-    console.log('Fetched quote data:', quoteData);
-    
-    // Update UI with quote data
-    updateQuoteInfo(quoteData);
-    
-    // If the quote is still processing, set up polling
-    if (quoteData.status === 'processing') {
-      setupStatusPolling(quoteId);
-      return;
-    }
-    
-    // Ensure we're using the correct markup value
-    const markup = parseInt(document.getElementById('markupSlider').value);
-    renderProducts(quoteData.products || [], markup);
-    
-    // Set up markup slider
-    setupMarkupSlider(quoteData.products || []);
-    
-    // Set up create products button
-    document.getElementById('createProductsBtn').addEventListener('click', () => {
-      createProducts(quoteId);
-    });
-  } catch (error) {
-    console.error('Error loading quote:', error);
-    showError(error.message);
-  }
-}
-    
-    // Create products in Shopify
-    async function createProducts(quoteId) {
-        try {
-            const markup = parseInt(document.getElementById('markupSlider').value);
-            const button = document.getElementById('createProductsBtn');
+            const debugPanel = document.getElementById('debugPanel');
+            const debugInfo = document.getElementById('debugInfo');
             
-            // Disable button and show loading state
-            button.disabled = true;
-            button.textContent = 'Creating...';
+            debugPanel.classList.remove('hidden');
             
-            const response = await fetch(`/api/quotes/${quoteId}/create-products`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ markup })
-            });
+            const timestamp = new Date().toISOString().substring(11, 19);
+            let debugText = debugInfo.innerText;
+            debugText += `[${timestamp}] ${message}\n`;
             
-            if (!response.ok) {
-                throw new Error(`Failed to create products: ${response.status}`);
+            if (data) {
+                try {
+                    debugText += JSON.stringify(data, null, 2) + '\n';
+                } catch (e) {
+                    debugText += `[Object: ${typeof data}]\n`;
+                }
             }
             
-            const result = await response.json();
+            // Keep only the last 20 lines
+            const lines = debugText.split('\n');
+            if (lines.length > 40) {
+                debugText = lines.slice(lines.length - 40).join('\n');
+            }
             
-            // Show success message
-            alert(`Success! ${result.results.created} products created and ${result.results.updated} updated.`);
-            
-            // Reset button
-            button.disabled = false;
-            button.textContent = 'Create Products in Shopify';
-            
-        } catch (error) {
-            console.error('Error creating products:', error);
-            alert(`Error creating products: ${error.message}`);
-            
-            // Reset button
-            const button = document.getElementById('createProductsBtn');
-            button.disabled = false;
-            button.textContent = 'Create Products in Shopify';
+            debugInfo.innerText = debugText;
         }
-    }
-
-function setupStatusPolling(quoteId) {
-  const pollInterval = setInterval(async () => {
-    try {
-      const response = await fetch(`/api/quotes/${quoteId}`);
-      const quoteData = await response.json();
-      
-      // Update the UI with current status
-      updateQuoteInfo(quoteData);
-      
-      if (quoteData.status !== 'processing') {
-        // Processing completed, update the UI and stop polling
-        const markup = parseInt(document.getElementById('markupSlider').value);
-        renderProducts(quoteData.products || [], markup);
-        setupMarkupSlider(quoteData.products || []);
-        clearInterval(pollInterval);
-      }
-    } catch (error) {
-      console.error('Error polling quote status:', error);
-    }
-  }, 3000); // Check every 3 seconds
-}
-    
-    // Initialize the page
-    document.addEventListener('DOMContentLoaded', loadQuoteData);
-</script>
+        
+        // Get quote ID from URL
+        function getQuoteId() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const idFromQuery = urlParams.get('id');
+            
+            if (idFromQuery) {
+                debug(`Found ID in URL query: ${idFromQuery}`);
+                return idFromQuery;
+            }
+            
+            // If no query parameter, try to get it from path
+            const pathParts = window.location.pathname.split('/');
+            if (pathParts.length > 2 && pathParts[1] === 'quotes') {
+                const idFromPath = pathParts[2];
+                debug(`Found ID in URL path: ${idFromPath}`);
+                return idFromPath;
+            }
+            
+            // If still no ID, ask user
+            const providedId = prompt('Please enter the quote ID:');
+            debug(`User provided ID: ${providedId}`);
+            return providedId;
+        }
+        
+        // Format date
+        function formatDate(dateString) {
+            if (!dateString) return '-';
+            try {
+                return new Date(dateString).toLocaleString();
+            } catch (e) {
+                return dateString;
+            }
+        }
+        
+        // Show error
+        function showError(message) {
+            debug('ERROR: ' + message);
+            
+            const errorDiv = document.getElementById('errorMessage');
+            const errorText = document.getElementById('errorText');
+            
+            errorText.textContent = message;
+            errorDiv.classList.remove('hidden');
+            
+            // Hide quote viewer
+            document.getElementById('quoteViewer').classList.add('hidden');
+        }
+        
+        // Render products table
+        function renderProducts(products, markup) {
+            debug(`Rendering ${products?.length || 0} products with markup ${markup}%`);
+            
+            const tableBody = document.getElementById('productsTable');
+            
+            if (!products || products.length === 0) {
+                tableBody.innerHTML = `
+                    <tr>
+                        <td colspan="5" class="px-6 py-4 text-center text-gray-500">
+                            No products were extracted from this quote.
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+            
+            debug('Products to render:', products.slice(0, 1)); // Show first product only
+            
+            tableBody.innerHTML = products.map((product, index) => {
+                // Validate properties and provide defaults
+                const sku = product.sku || 'N/A';
+                const description = product.description || 'No description';
+                const unitPrice = parseFloat(product.unitPrice) || 0;
+                const shopifyPrice = (unitPrice * (1 + markup / 100)).toFixed(2);
+                const quantity = product.availableQuantity || 1;
+                
+                return `
+                    <tr class="${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}">
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                            ${sku}
+                        </td>
+                        <td class="px-6 py-4 text-sm text-gray-500">
+                            ${description}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            R${unitPrice.toFixed(2)}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 shopify-price" data-unit-price="${unitPrice}">
+                            R${shopifyPrice}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            ${quantity}
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+        
+        // Update quote info
+        function updateQuoteInfo(quoteData) {
+            debug('Updating quote info with data', quoteData);
+            
+            document.getElementById('supplierName').textContent = quoteData.supplierName || 'Unknown Supplier';
+            document.getElementById('quoteStatus').textContent = quoteData.status || '-';
+            document.getElementById('uploadDate').textContent = formatDate(quoteData.uploadedAt);
+            document.getElementById('processDate').textContent = formatDate(quoteData.processedAt);
+            document.getElementById('fileName').textContent = quoteData.originalName || '-';
+            document.getElementById('productsCount').textContent = (quoteData.products || []).length.toString();
+            
+            // Style status based on value
+            const statusElement = document.getElementById('quoteStatus');
+            
+            if (quoteData.status === 'processed') {
+                statusElement.className = 'inline-block px-2 py-1 bg-green-100 text-green-800 rounded text-xs';
+            } else if (quoteData.status === 'processing') {
+                statusElement.className = 'inline-block px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs';
+                
+                // Show a spinner in the products table while processing
+                document.getElementById('productsTable').innerHTML = `
+                    <tr>
+                        <td colspan="5" class="px-6 py-4 text-center">
+                            <div class="animate-spin inline-block h-8 w-8 border-4 border-blue-500 border-t-transparent rounded-full mr-2"></div>
+                            <span class="text-gray-600">Processing quote... this may take a moment</span>
+                        </td>
+                    </tr>
+                `;
+            } else if (quoteData.status === 'error') {
+                statusElement.className = 'inline-block px-2 py-1 bg-red-100 text-red-800 rounded text-xs';
+            } else {
+                statusElement.className = 'inline-block px-2 py-1 bg-gray-100 text-gray-800 rounded text-xs';
+            }
+        }
+        
+        // Set up markup slider
+        function setupMarkupSlider() {
+            const slider = document.getElementById('markupSlider');
+            const valueDisplay = document.getElementById('markupValue');
+            
+            // Update display when slider changes
+            slider.addEventListener('input', function() {
+                const markup = parseInt(this.value);
+                valueDisplay.textContent = `${markup}%`;
+                
+                // Update Shopify prices
+                document.querySelectorAll('.shopify-price').forEach(cell => {
+                    const unitPrice = parseFloat(cell.getAttribute('data-unit-price'));
+                    if (!isNaN(unitPrice)) {
+                        const shopifyPrice = (unitPrice * (1 + markup / 100)).toFixed(2);
+                        cell.textContent = `R${shopifyPrice}`;
+                    }
+                });
+            });
+        }
+        
+        // Polling for status updates
+        function setupStatusPolling(quoteId) {
+            debug(`Setting up polling for quote ${quoteId}`);
+            
+            const pollInterval = setInterval(async () => {
+                try {
+                    debug('Polling for quote status update');
+                    
+                    const response = await fetch(`/api/quotes/${quoteId}`);
+                    if (!response.ok) {
+                        throw new Error(`Failed to fetch quote: ${response.status}`);
+                    }
+                    
+                    const quoteData = await response.json();
+                    debug('Received updated quote data in polling', {
+                        status: quoteData.status,
+                        productCount: (quoteData.products || []).length
+                    });
+                    
+                    // Update the UI with current status
+                    updateQuoteInfo(quoteData);
+                    
+                    if (quoteData.status !== 'processing') {
+                        debug(`Stopping polling - status is now ${quoteData.status}`);
+                        
+                        // Processing completed or errored, update the UI
+                        const markup = parseInt(document.getElementById('markupSlider').value);
+                        renderProducts(quoteData.products || [], markup);
+                        
+                        // Stop polling
+                        clearInterval(pollInterval);
+                    }
+                } catch (error) {
+                    debug('Error during polling:', error.message);
+                    clearInterval(pollInterval);
+                }
+            }, 3000); // Check every 3 seconds
+        }
+        
+        // Create products in Shopify
+        async function createProducts(quoteId) {
+            try {
+                const markup = parseInt(document.getElementById('markupSlider').value);
+                const button = document.getElementById('createProductsBtn');
+                
+                debug(`Creating products with ${markup}% markup for quote ${quoteId}`);
+                
+                // Disable button and show loading state
+                button.disabled = true;
+                button.textContent = 'Creating...';
+                
+                const response = await fetch(`/api/quotes/${quoteId}/create-products`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ markup })
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`Failed to create products: ${response.status}`);
+                }
+                
+                const result = await response.json();
+                debug('Product creation result:', result);
+                
+                // Show success message
+                alert(`Success! ${result.results.created} products created and ${result.results.updated} updated.`);
+                
+                // Reset button
+                button.disabled = false;
+                button.textContent = 'Create Products in Shopify';
+                
+            } catch (error) {
+                debug('Error creating products:', error.message);
+                alert(`Error creating products: ${error.message}`);
+                
+                // Reset button
+                const button = document.getElementById('createProductsBtn');
+                button.disabled = false;
+                button.textContent = 'Create Products in Shopify';
+            }
+        }
+        
+        // Load quote data - MAIN FUNCTION
+        async function loadQuoteData() {
+            try {
+                const quoteId = getQuoteId();
+                
+                if (!quoteId) {
+                    showError('No quote ID provided');
+                    return;
+                }
+                
+                debug(`Loading quote data for ID: ${quoteId}`);
+                
+                // Show loading state in UI
+                document.getElementById('supplierName').textContent = 'Loading...';
+                document.getElementById('productsTable').innerHTML = `
+                    <tr>
+                        <td colspan="5" class="px-6 py-4 text-center text-gray-500">
+                            Loading products...
+                        </td>
+                    </tr>
+                `;
+                
+                const response = await fetch(`/api/quotes/${quoteId}`);
+                
+                if (!response.ok) {
+                    throw new Error(`Failed to fetch quote: ${response.status}`);
+                }
+                
+                const quoteData = await response.json();
+                debug('Received quote data:', {
+                    id: quoteData.id,
+                    status: quoteData.status,
+                    supplier: quoteData.supplierName,
+                    products: (quoteData.products || []).length
+                });
+                
+                // Make sure the quote viewer is visible
+                document.getElementById('quoteViewer').classList.remove('hidden');
+                document.getElementById('errorMessage').classList.add('hidden');
+                
+                // Update UI with quote info
+                updateQuoteInfo(quoteData);
+                
+                // If the quote is still processing, set up polling
+                if (quoteData.status === 'processing') {
+                    debug('Quote is still processing, setting up polling');
+                    setupStatusPolling(quoteId);
+                    return;
+                }
+                
+                // If the quote is processed and has products, render them
+                const markup = parseInt(document.getElementById('markupSlider').value);
+                renderProducts(quoteData.products || [], markup);
+                
+                // Set up markup slider interactivity
+                setupMarkupSlider();
+                
+                // Set up create products button
+                document.getElementById('createProductsBtn').addEventListener('click', function() {
+                    createProducts(quoteId);
+                });
+                
+                debug('Quote data loaded and rendered successfully');
+                
+            } catch (error) {
+                debug('Error loading quote data:', error.message);
+                showError(`Error loading quote: ${error.message}`);
+            }
+        }
+        
+        // Set up event listeners
+        document.addEventListener('DOMContentLoaded', function() {
+            debug('Page loaded, initializing...');
+            
+            // Set up refresh button
+            document.getElementById('refreshData').addEventListener('click', function() {
+                debug('Manual refresh requested');
+                loadQuoteData();
+            });
+            
+            // Initial data load
+            loadQuoteData();
+        });
+    </script>
+</body>
+</html>
