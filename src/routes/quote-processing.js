@@ -1190,6 +1190,21 @@ router.get('/', async (req, res) => {
   }
 });
 
+// This might be in src/routes/quote-processing.js or another file that handles background processing
+
+// Existing code
+db.updateQuote(quoteId, {
+  products: extractedProducts,
+  // Add this line to update the status
+  status: 'completed'
+}, (err) => {
+  if (err) {
+    console.error(`Error updating quote ${quoteId}:`, err);
+  } else {
+    console.log(`Quote ${quoteId} processing completed and saved to database`);
+  }
+});
+
 // Delete a quote
 router.delete('/:quoteId', async (req, res) => {
   try {
