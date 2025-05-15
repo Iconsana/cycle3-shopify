@@ -194,10 +194,10 @@ async function processQuoteInBackground(quoteId, filePath, mimeType) {
     const updatedQuoteIndex = db.data.quotes.findIndex(q => q.id === quoteId);
     
     if (updatedQuoteIndex !== -1) {
-      // THIS LINE NEEDS TO BE FIXED - ensure status is set to 'processed'
-      db.data.quotes[updatedQuoteIndex].status = extractedProducts.length > 0 ? 'processed' : 'error';
-      db.data.quotes[updatedQuoteIndex].processedAt = new Date().toISOString();
-      db.data.quotes[updatedQuoteIndex].products = extractedProducts;
+     // FIXED: ensure status is set to 'processed' when extraction is successful
+  db.data.quotes[updatedQuoteIndex].status = extractedProducts.length > 0 ? 'processed' : 'error';
+  db.data.quotes[updatedQuoteIndex].processedAt = new Date().toISOString();
+  db.data.quotes[updatedQuoteIndex].products = extractedProducts;
       
       // Make sure this writes to the database
       await db.write();
