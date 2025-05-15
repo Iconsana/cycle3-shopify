@@ -194,19 +194,14 @@ async function processQuoteInBackground(quoteId, filePath, mimeType) {
     const updatedQuoteIndex = db.data.quotes.findIndex(q => q.id === quoteId);
     
     if (updatedQuoteIndex !== -1) {
+      // THIS LINE NEEDS TO BE FIXED - ensure status is set to 'processed'
       db.data.quotes[updatedQuoteIndex].status = extractedProducts.length > 0 ? 'processed' : 'error';
       db.data.quotes[updatedQuoteIndex].processedAt = new Date().toISOString();
       db.data.quotes[updatedQuoteIndex].products = extractedProducts;
-      db.data.quotes[updatedQuoteIndex].ocrConfidence = 0.95; // Claude is usually very accurate
       
-      if (extractedProducts.length === 0) {
-        db.data.quotes[updatedQuoteIndex].error = 'No products could be extracted from this quote';
-      }
-      
+      // Make sure this writes to the database
       await db.write();
       console.log(`Quote ${quoteId} processing completed and saved to database`);
-    } else {
-      console.error(`Quote ${quoteId} disappeared from database during processing`);
     }
     
   } catch (error) {
