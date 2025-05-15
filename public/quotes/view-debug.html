@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quote Viewer (Debug)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100">
+    <div class="container mx-auto px-4 py-8">
+        <h1 class="text-3xl font-bold mb-4">Quote Viewer (Debug Mode)</h1>
+        
+        <!-- Debug Panel -->
+        <div id="debugPanel" class="bg-gray-800 text-white p-4 mb-4 rounded">
+            <h3 class="font-bold mb-2">Debug Info</h3>
+            <div id="debugInfo" class="text-xs overflow-auto max-h-60"></div>
+            
+            <div class="mt-2 space-x-2">
+                <button id="reloadData" class="bg-blue-500 text-white px-2 py-1 rounded text-xs">
+                    Manual Reload
+                </button>
+                <button id="clearLog" class="bg-red-500 text-white px-2 py-1 rounded text-xs">
+                    Clear Log
+                </button>
+                <button id="checkStatus" class="bg-green-500 text-white px-2 py-1 rounded text-xs">
+                    Check Status
+                </button>
+                <label class="text-xs ml-4">
+                    <input type="checkbox" id="enablePolling" checked> 
+                    Enable Auto-Refresh (5s)
+                </label>
+            </div>
+        </div>
+        
+        <div id="quoteViewer" class="mb-8">
+            <div class="bg-white rounded-lg shadow-md p-6 mb-4">
+                <div id="quoteInfo">
+                    <h2 class="text-xl font-semibold mb-4" id="supplierName">Loading...</h2>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <p><span class="font-medium">Status:</span> <span id="quoteStatus">-</span></p>
+                            <p><span class="font-medium">Uploaded:</span> <span id="uploadDate">-</span></p>
+                            <p><span class="font-medium">Processed:</span> <span id="processDate">-</span></p>
+                        </div>
+                        <div>
+                            <p><span class="font-medium">File:</span> <span id="fileName">-</span></p>
+                            <p><span class="font-medium">Products Found:</span> <span id="productsCount">-</span></p>
+                            <p><span class="font-medium">Quote ID:</span> <span id="quoteId">-</span></p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="bg-white rounded-lg shadow-md p-6">
+                <div class="flex justify-between items-center mb-6">
+                    <h2 class="text-xl font-semibold">Extracted Products</h2>
+                    <div class="flex items-center">
+                        <label class="mr-2 text-sm font-medium">Markup:</label>
+                        <input
+                            type="range"
+                            min="0"
+                            max="200"
+                            value="50"
+                            id="markupSlider"
+                            class="w-32 mr-2"
+                        />
+                        <span class="text-sm font-medium w-12" id="markupValue">50%</span>
+                    </div>
+                </div>
+                
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">SKU</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Supplier Price</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Shopify Price</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quantity</th>
+                            </tr>
+                        </thead>
+                        <tbody id="productsTable" class="bg-white divide-y divide-gray-200">
+                            <tr>
+                                <td colspan="5" class="px-6 py-4 text-center text-gray-500">Loading products...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                
+                <div class="mt-6 flex justify-end">
+                    <button id="createProductsBtn" class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded">
+                        Create Products in Shopify
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <div id="errorMessage" class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-8 hidden">
+            <p class="font-bold">Error</p>
+            <p id="errorText"></p>
+        </div>
+        
+        <div class="flex justify-between">
+            <a href="/quotes" class="text-blue-500 hover:underline">Back to Quotes</a>
+            <a href="/quotes/upload" class="text-blue-500 hover:underline">Upload New Quote</a>
+        </div>
+    </div>
+
+    <script>
+        // ===== ENHANCED DEBUGGING SCRIPT =====
+        // Configuration
+        const DEBUG_MODE = true;
+        const POLL_INTERVAL = 5000; // 5 seconds
+        let pollTimer = null;
+        let lastPolledData = null;
+        let loadAttempts = 0;
+        const MAX_LOAD_ATTEMPTS = 60; // 5 minutes with 5s interval
+        
+        // Debug function
+        function debug(message, data = null) {
+            if (!DEBUG_MODE) return;
+            
+            console.log(message, data);
+            
+            const debugPanel = document.getElementById('debugPanel');
+            const debugInfo = document.getElementById('debugInfo');
+            
+            debugPanel.classList.remove('hidden');
+            
+            const timestamp = new Date().toISOString().substring(11, 19);
+            let debugText = debugInfo.innerText;
+            debugText += `[${timestamp}] ${message}\n`;
+            
+            if (data) {
+                try {
+                    if (typeof data === 'string') {
+                        debugText += data + '\n';
+                    } else {
+                        debugText += JSON.stringify(data, null, 2) + '\n';
+                    }
+                } catch (e) {
+                    debugText += `[Object: ${typeof data}]\n`;
+                }
+            }
+            
+            // Keep only the last 100 lines
+            const lines = debugText.split('\n');
+            if (lines.length > 100) {
+                debugText = lines.slice(lines.length - 100).join('\n');
+            }
+            
+            debugInfo.innerText = debugText;
+            
+            // Auto-scroll to bottom
+            debugInfo.scrollTop = debugInfo.scrollHeight;
+        }
+        
+        // Get quote ID from URL
+        function getQuoteId() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const idFromQuery = urlParams.get('id');
+            
+            if (idFromQuery) {
+                debug(`Found ID in URL query: ${idFromQuery}`);
+                return idFromQuery;
+            }
+            
+            // If no query parameter, try to get it from path
+            const pathParts = window.location.pathname.split('/');
+            if (pathParts.length > 2 && pathParts[1] === 'quotes') {
+                const idFromPath = pathParts[2];
+                debug(`Found ID in URL path: ${idFromPath}`);
+                return idFromPath;
+            }
+            
+            // If still no ID, ask user
+            const providedId = prompt('Please enter the quote ID:');
+            debug(`User provided ID: ${providedId}`);
+            return providedId;
+        }
+        
+        // Format date
+        function formatDate(dateString) {
+            if (!dateString) return '-';
+            try {
+                return new Date(dateString).toLocaleString();
+            } catch (e) {
+                return dateString;
+            }
+        }
+        
+        // Show error
+        function showError(message) {
+            debug('ERROR: ' + message);
+            
+            const errorDiv = document.getElementById('errorMessage');
+            const errorText = document.getElementById('errorText');
+            
+            errorText.textContent = message;
+            errorDiv.classList.remove('hidden');
+            
+            // Hide quote viewer
+            document.getElementById('quoteViewer').classList.add('hidden');
+        }
+        
+        // Render products table
+        function renderProducts(products, markup) {
+            debug(`Rendering ${products?.length || 0} products with markup ${markup}%`);
+            
+            const tableBody = document.getElementById('productsTable');
+            
+            if (!products || products.length === 0) {
+                tableBody.innerHTML = `
+                    <tr>
+                        <td colspan="5" class="px-6 py-4 text-center text-gray-500">
+                            No products were extracted from this quote.
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+            
+            debug('First product example:', products[0]);
+            
+            tableBody.innerHTML = products.map((product, index) => {
+                // Validate properties and provide defaults
+                const sku = product.sku || 'N/A';
+                const description = product.description || 'No description';
+                const unitPrice = parseFloat(product.unitPrice) || 0;
+                const shopifyPrice = (unitPrice * (1 + markup / 100)).toFixed(2);
+                const quantity = product.availableQuantity || 1;
+                
+                return `
+                    <tr class="${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}">
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                            ${sku}
+                        </td>
+                        <td class="px-6 py-4 text-sm text-gray-500">
+                            ${description}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            R${unitPrice.toFixed(2)}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 shopify-price" data-unit-price="${unitPrice}">
+                            R${shopifyPrice}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            ${quantity}
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+        
+        // Update quote info
+        function updateQuoteInfo(quoteData) {
+            debug('Updating quote info with data', {
+                id: quoteData.id,
+                status: quoteData.status,
+                supplierName: quoteData.supplierName,
+                productsCount: (quoteData.products || []).length
+            });
+            
+            document.getElementById('supplierName').textContent = quoteData.supplierName || 'Unknown Supplier';
+            document.getElementById('quoteStatus').textContent = quoteData.status || '-';
+            document.getElementById('uploadDate').textContent = formatDate(quoteData.uploadedAt);
+            document.getElementById('processDate').textContent = formatDate(quoteData.processedAt);
+            document.getElementById('fileName').textContent = quoteData.originalName || '-';
+            document.getElementById('productsCount').textContent = (quoteData.products || []).length.toString();
+            document.getElementById('quoteId').textContent = quoteData.id || '-';
+            
+            // Style status based on value
+            const statusElement = document.getElementById('quoteStatus');
+            
+            if (quoteData.status === 'processed') {
+                statusElement.className = 'inline-block px-2 py-1 bg-green-100 text-green-800 rounded text-xs';
+            } else if (quoteData.status === 'processing') {
+                statusElement.className = 'inline-block px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs';
+                
+                // Show a spinner in the products table while processing
+                document.getElementById('productsTable').innerHTML = `
+                    <tr>
+                        <td colspan="5" class="px-6 py-4 text-center">
+                            <div class="animate-spin inline-block h-8 w-8 border-4 border-blue-500 border-t-transparent rounded-full mr-2"></div>
+                            <span class="text-gray-600">Processing quote... this may take a moment</span>
+                        </td>
+                    </tr>
+                `;
+            } else if (quoteData.status === 'error') {
+                statusElement.className = 'inline-block px-2 py-1 bg-red-100 text-red-800 rounded text-xs';
+            } else {
+                statusElement.className = 'inline-block px-2 py-1 bg-gray-100 text-gray-800 rounded text-xs';
+            }
+            
+            // If processed but no products, show warning
+            if (quoteData.status === 'processed' && (!quoteData.products || quoteData.products.length === 0)) {
+                debug('CRITICAL ERROR: Quote is marked as processed but has no products!');
+                showError('Quote is marked as processed but no products were found. There may be an issue with the extraction process.');
+            }
+            
+            // If there's an error, show it
+            if (quoteData.error) {
+                debug('Quote has error: ' + quoteData.error);
+                showError('Error processing quote: ' + quoteData.error);
+            }
+        }
+        
+        // Set up markup slider
+        function setupMarkupSlider() {
+            const slider = document.getElementById('markupSlider');
+            const valueDisplay = document.getElementById('markupValue');
+            
+            // Update display when slider changes
+            slider.addEventListener('input', function() {
+                const markup = parseInt(this.value);
+                valueDisplay.textContent = `${markup}%`;
+                
+                // Update Shopify prices
+                document.querySelectorAll('.shopify-price').forEach(cell => {
+                    const unitPrice = parseFloat(cell.getAttribute('data-unit-price'));
+                    if (!isNaN(unitPrice)) {
+                        const shopifyPrice = (unitPrice * (1 + markup / 100)).toFixed(2);
+                        cell.textContent = `R${shopifyPrice}`;
+                    }
+                });
+            });
+        }
+        
+        // Fetch and display quote data
+        async function loadQuoteData(quoteId, isPolling = false) {
+            try {
+                if (!quoteId) {
+                    showError('No quote ID provided');
+                    return false;
+                }
+                
+                if (!isPolling) {
+                    debug(`Loading quote data for ID: ${quoteId}`);
+                    loadAttempts = 0;
+                } else {
+                    debug(`Polling for updates (attempt ${loadAttempts + 1})`);
+                    loadAttempts++;
+                    
+                    if (loadAttempts > MAX_LOAD_ATTEMPTS) {
+                        debug('Max polling attempts reached. Stopping poll.');
+                        stopPolling();
+                        showError('The quote processing is taking longer than expected. Please refresh the page manually or check back later.');
+                        return false;
+                    }
+                }
+                
+                // Show loading state in UI
+                if (!isPolling) {
+                    document.getElementById('supplierName').textContent = 'Loading...';
+                    document.getElementById('productsTable').innerHTML = `
+                        <tr>
+                            <td colspan="5" class="px-6 py-4 text-center text-gray-500">
+                                Loading products...
+                            </td>
+                        </tr>
+                    `;
+                }
+                
+                // Clear any existing errors
+                document.getElementById('errorMessage').classList.add('hidden');
+                document.getElementById('quoteViewer').classList.remove('hidden');
+                
+                // Add a timestamp to prevent caching issues
+                const cacheBuster = `_t=${Date.now()}`;
+                const response = await fetch(`/api/quotes/${quoteId}?${cacheBuster}`);
+                
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`Failed to fetch quote (${response.status}): ${errorText}`);
+                }
+                
+                const quoteData = await response.json();
+                debug('Received quote data:', {
+                    id: quoteData.id,
+                    status: quoteData.status,
+                    productsCount: (quoteData.products || []).length
+                });
+                
+                // Check if data has changed since last poll
+                if (isPolling && lastPolledData) {
+                    const prevProducts = lastPolledData.products?.length || 0;
+                    const newProducts = quoteData.products?.length || 0;
+                    const statusChanged = lastPolledData.status !== quoteData.status;
+                    
+                    if (prevProducts === newProducts && !statusChanged) {
+                        debug('No changes detected in polling data');
+                        return true; // Continue polling
+                    }
+                    
+                    debug(`Changes detected: Products ${prevProducts} -> ${newProducts}, Status ${lastPolledData.status} -> ${quoteData.status}`);
+                }
+                
+                // Cache for next comparison
+                lastPolledData = quoteData;
+                
+                // Update UI with quote info
+                updateQuoteInfo(quoteData);
+                
+                // If the quote is still processing, keep polling
+                if (quoteData.status === 'processing') {
+                    debug('Quote is still processing, continuing to poll');
+                    return true; // Continue polling
+                }
+                
+                // If the quote is processed and has products, render them
+                const markup = parseInt(document.getElementById('markupSlider').value);
+                renderProducts(quoteData.products || [], markup);
+                
+                // Set up markup slider interactivity
+                setupMarkupSlider();
+                
+                // If we reached here and were polling, stop polling
+                if (isPolling) {
+                    debug('Quote processing complete, stopping polling');
+                    stopPolling();
+                }
+                
+                debug('Quote data loaded and rendered successfully');
+                return false; // Stop polling
+                
+            } catch (error) {
+                debug('Error loading quote data:', error.message);
+                
+                if (!isPolling) {
+                    showError(`Error loading quote: ${error.message}`);
+                } else {
+                    // Don't show errors on polling attempts, just log them
+                    console.error('Polling error:', error);
+                }
+                
+                return true; // Continue polling despite error
+            }
+        }
+        
+        // Create products in Shopify
+        async function createProducts(quoteId) {
+            try {
+                const markup = parseInt(document.getElementById('markupSlider').value);
+                const button = document.getElementById('createProductsBtn');
+                
+                debug(`Creating products with ${markup}% markup for quote ${quoteId}`);
+                
+                // Disable button and show loading state
+                button.disabled = true;
+                button.textContent = 'Creating...';
+                
+                const response = await fetch(`/api/quotes/${quoteId}/create-products`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ markup })
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`Failed to create products: ${response.status}`);
+                }
+                
+                const result = await response.json();
+                debug('Product creation result:', result);
+                
+                // Show success message
+                alert(`Success! ${result.results.created} products created and ${result.results.updated} updated.`);
+                
+                // Reset button
+                button.disabled = false;
+                button.textContent = 'Create Products in Shopify';
+                
+            } catch (error) {
+                debug('Error creating products:', error.message);
+                alert(`Error creating products: ${error.message}`);
+                
+                // Reset button
+                const button = document.getElementById('createProductsBtn');
+                button.disabled = false;
+                button.textContent = 'Create Products in Shopify';
+            }
+        }
+        
+        // Start polling for updates
+        function startPolling(quoteId) {
+            if (pollTimer) clearInterval(pollTimer);
+            
+            // Initial load
+            loadQuoteData(quoteId, false).then(continuePoll => {
+                if (continuePoll) {
+                    debug('Starting polling for updates...');
+                    pollTimer = setInterval(() => {
+                        if (!document.getElementById('enablePolling').checked) {
+                            debug('Polling disabled by user');
+                            stopPolling();
+                            return;
+                        }
+                        
+                        loadQuoteData(quoteId, true).then(shouldContinue => {
+                            if (!shouldContinue) {
+                                debug('Polling completed - stopping interval');
+                                stopPolling();
+                            }
+                        });
+                    }, POLL_INTERVAL);
+                }
+            });
+        }
+        
+        // Stop polling
+        function stopPolling() {
+            if (pollTimer) {
+                clearInterval(pollTimer);
+                pollTimer = null;
+                debug('Polling stopped');
+            }
+        }
+        
+        // Check current status of quote
+        async function checkStatus(quoteId) {
+            try {
+                debug('Performing manual status check...');
+                
+                // Add a timestamp to prevent caching issues
+                const cacheBuster = `_t=${Date.now()}`;
+                const response = await fetch(`/api/quotes/${quoteId}?${cacheBuster}`);
+                
+                if (!response.ok) {
+                    throw new Error(`Failed to fetch quote: ${response.status}`);
+                }
+                
+                const quoteData = await response.json();
+                
+                debug('Status check result:', {
+                    id: quoteData.id,
+                    status: quoteData.status,
+                    uploadedAt: quoteData.uploadedAt,
+                    processedAt: quoteData.processedAt,
+                    productsCount: (quoteData.products || []).length
+                });
+                
+                // If processing time is long, show warning
+                if (quoteData.status === 'processing') {
+                    const uploadTime = new Date(quoteData.uploadedAt).getTime();
+                    const currentTime = new Date().getTime();
+                    const processingTimeMinutes = Math.floor((currentTime - uploadTime) / 60000);
+                    
+                    debug(`Quote has been processing for ${processingTimeMinutes} minutes`);
+                    
+                    if (processingTimeMinutes > 5) {
+                        debug('WARNING: Processing time is unusually long');
+                        alert(`Warning: This quote has been processing for ${processingTimeMinutes} minutes, which is longer than expected. There might be an issue with the processing service.`);
+                    }
+                }
+                
+                return quoteData;
+            } catch (error) {
+                debug('Error checking status:', error.message);
+                alert(`Error checking status: ${error.message}`);
+            }
+        }
+        
+        // Set up event listeners
+        document.addEventListener('DOMContentLoaded', function() {
+            debug('Page loaded, initializing...');
+            
+            const quoteId = getQuoteId();
+            if (quoteId) {
+                // Start polling for updates
+                startPolling(quoteId);
+                
+                // Set up create products button
+                document.getElementById('createProductsBtn').addEventListener('click', function() {
+                    createProducts(quoteId);
+                });
+                
+                // Set up debug buttons
+                document.getElementById('reloadData').addEventListener('click', function() {
+                    debug('Manual reload requested');
+                    loadQuoteData(quoteId, false);
+                });
+                
+                document.getElementById('clearLog').addEventListener('click', function() {
+                    document.getElementById('debugInfo').innerText = '';
+                    debug('Debug log cleared');
+                });
+                
+                document.getElementById('checkStatus').addEventListener('click', function() {
+                    checkStatus(quoteId);
+                });
+            } else {
+                debug('No quote ID found');
+                showError('No quote ID provided. Please specify a quote ID in the URL.');
+            }
+        });
+    </script>
+</body>
+</html>
