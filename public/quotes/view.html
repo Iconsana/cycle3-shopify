@@ -91,7 +91,7 @@
   document.getElementById('refreshData').addEventListener('click', () => {
     // Reload the current quote data
     const quoteId = /* get your current quote ID */;
-    fetchQuoteData(quoteId);
+    loadQuoteData(quoteId);
   });
 </script>
 
@@ -170,36 +170,37 @@
     }
     
     // Update quote info
-    function updateQuoteInfo(quoteData) {
-        document.getElementById('supplierName').textContent = quoteData.supplierName || 'Unknown Supplier';
-        document.getElementById('quoteStatus').textContent = quoteData.status || '-';
-        document.getElementById('uploadDate').textContent = formatDate(quoteData.uploadedAt);
-        document.getElementById('processDate').textContent = formatDate(quoteData.processedAt);
-        document.getElementById('fileName').textContent = quoteData.originalName || '-';
-        document.getElementById('productsCount').textContent = (quoteData.products || []).length.toString();
-        
-        // Style status based on value
-        const statusElement = document.getElementById('quoteStatus');
-        if (quoteData.status === 'processed') {
-            statusElement.className = 'inline-block px-2 py-1 bg-green-100 text-green-800 rounded text-xs';
-        } else if (quoteData.status === 'processing') {
-  // Show a spinner and message
-  document.getElementById('supplierName').textContent = 'Processing Quote...';
-  document.getElementById('productsTable').innerHTML = `
-    <tr>
-      <td colspan="5" class="px-6 py-4 text-center">
-        <div class="animate-spin inline-block h-8 w-8 border-4 border-blue-500 border-t-transparent rounded-full mr-2"></div>
-        Quote is still being processed. Please wait or refresh in a moment...
-      </td>
-    </tr>
-  `;
+// Add this to your updateQuoteInfo function
+function updateQuoteInfo(quoteData) {
+  document.getElementById('supplierName').textContent = quoteData.supplierName || 'Unknown Supplier';
+  document.getElementById('quoteStatus').textContent = quoteData.status || '-';
+  document.getElementById('uploadDate').textContent = formatDate(quoteData.uploadedAt);
+  document.getElementById('processDate').textContent = formatDate(quoteData.processedAt);
+  document.getElementById('fileName').textContent = quoteData.originalName || '-';
+  document.getElementById('productsCount').textContent = (quoteData.products || []).length.toString();
   
-  // Optional: Set up automatic refresh after a few seconds
-  setTimeout(() => {
-    window.location.reload();
-  }, 5000); // refresh every 5 seconds
+  // Style status based on value
+  const statusElement = document.getElementById('quoteStatus');
+  if (quoteData.status === 'processed') {
+    statusElement.className = 'inline-block px-2 py-1 bg-green-100 text-green-800 rounded text-xs';
+  } else if (quoteData.status === 'processing') {
+    // Show a spinner and message
+    document.getElementById('supplierName').textContent = 'Processing Quote...';
+    document.getElementById('productsTable').innerHTML = `
+      <tr>
+        <td colspan="5" class="px-6 py-4 text-center">
+          <div class="animate-spin inline-block h-8 w-8 border-4 border-blue-500 border-t-transparent rounded-full mr-2"></div>
+          Quote is still being processed. Please wait or refresh in a moment...
+        </td>
+      </tr>
+    `;
+    
+    // Optional: Set up automatic refresh after a few seconds
+    setTimeout(() => {
+      window.location.reload();
+    }, 5000); // refresh every 5 seconds
+  }
 }
-    }
     
     // Handle markup slider
     function setupMarkupSlider(products) {
@@ -219,45 +220,50 @@
         });
     }
     
-    // Load the quote data
-    async function loadQuoteData() {
-        try {
-            const quoteId = getQuoteId();
-            
-            if (!quoteId) {
-                showError('No quote ID provided');
-                return;
-            }
-            
-            const response = await fetch(`/api/quotes/${quoteId}`);
-            
-            if (!response.ok) {
-                throw new Error(`Failed to fetch quote: ${response.status}`);
-            }
-            
-            const quoteData = await response.json();
-            console.log('Fetched quote data:', quoteData);
-            
-            // Update UI with quote data
-            updateQuoteInfo(quoteData);
-            
-            // Render products
-            const markup = parseInt(document.getElementById('markupSlider').value);
-            renderProducts(quoteData.products, markup);
-            
-            // Set up markup slider
-            setupMarkupSlider(quoteData.products);
-            
-            // Set up create products button
-            document.getElementById('createProductsBtn').addEventListener('click', function() {
-                createProducts(quoteId);
-            });
-            
-        } catch (error) {
-            console.error('Error loading quote:', error);
-            showError(error.message);
-        }
+  // Add this debugging code to your loadQuoteData function in quotes/view.html
+async function loadQuoteData() {
+  try {
+    const quoteId = getQuoteId();
+    
+    if (!quoteId) {
+      showError('No quote ID provided');
+      return;
     }
+    
+    console.log('Loading quote data for ID:', quoteId);
+    
+    const response = await fetch(`/api/quotes/${quoteId}`);
+    
+    if (!response.ok) {
+      throw new Error(`Failed to fetch quote: ${response.status}`);
+    }
+    
+    const quoteData = await response.json();
+    console.log('Fetched quote data:', quoteData); // Debug: Log the full quote data
+    
+    // Check if products array exists and has content
+    if (quoteData.products && quoteData.products.length > 0) {
+      console.log(`Found ${quoteData.products.length} products in quote data`);
+    } else {
+      console.warn('No products found in quote data');
+    }
+    
+    // Rest of your existing code...
+    updateQuoteInfo(quoteData);
+    
+    // Ensure we're using the correct markup value
+    const markup = parseInt(document.getElementById('markupSlider').value);
+    renderProducts(quoteData.products, markup);
+    
+    // Set up markup slider
+    setupMarkupSlider(quoteData.products);
+    
+    // ... rest of your function
+  } catch (error) {
+    console.error('Error loading quote:', error);
+    showError(error.message);
+  }
+}
     
     // Create products in Shopify
     async function createProducts(quoteId) {
