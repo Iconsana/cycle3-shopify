@@ -1282,6 +1282,37 @@ router.get('/:quoteId/products-raw', async (req, res) => {
   }
 });
 
+// In src/routes/quote-processing.js
+
+router.get('/:id', async (req, res) => {
+  const quoteId = req.params.id;
+  console.log(`Fetching quote ${quoteId} details`);
+  
+  try {
+    // Your existing database fetch logic - replace this with your actual database access code
+    const quote = await Quote.findById(quoteId); // Or however you access your database
+    
+    if (!quote) {
+      return res.status(404).json({ error: 'Quote not found' });
+    }
+    
+    // Add processing status info to the response
+    const response = {
+      id: quote.id,
+      products: quote.products || [],
+      status: quote.status || 'processing',
+      processingComplete: quote.status === 'completed',
+      timestamp: new Date().toISOString()
+    };
+    
+    console.log(`Returning quote ${quoteId} with status: ${response.status}, products: ${response.products.length}`);
+    res.json(response);
+  } catch (error) {
+    console.error(`Error fetching quote ${quoteId}:`, error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // Debug endpoint to test Claude directly
 router.post('/debug-claude', upload.single('quoteFile'), async (req, res) => {
   try {
