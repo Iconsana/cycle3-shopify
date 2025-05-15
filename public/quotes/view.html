@@ -169,8 +169,6 @@
         }).join('');
     }
     
-    // Update quote info
-// Add this to your updateQuoteInfo function
 function updateQuoteInfo(quoteData) {
   document.getElementById('supplierName').textContent = quoteData.supplierName || 'Unknown Supplier';
   document.getElementById('quoteStatus').textContent = quoteData.status || '-';
@@ -184,8 +182,9 @@ function updateQuoteInfo(quoteData) {
   if (quoteData.status === 'processed') {
     statusElement.className = 'inline-block px-2 py-1 bg-green-100 text-green-800 rounded text-xs';
   } else if (quoteData.status === 'processing') {
-    // Show a spinner and message
-    document.getElementById('supplierName').textContent = 'Processing Quote...';
+    statusElement.className = 'inline-block px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs';
+    
+    // Show a message about processing
     document.getElementById('productsTable').innerHTML = `
       <tr>
         <td colspan="5" class="px-6 py-4 text-center">
@@ -194,11 +193,8 @@ function updateQuoteInfo(quoteData) {
         </td>
       </tr>
     `;
-    
-    // Optional: Set up automatic refresh after a few seconds
-    setTimeout(() => {
-      window.location.reload();
-    }, 5000); // refresh every 5 seconds
+  } else if (quoteData.status === 'error') {
+    statusElement.className = 'inline-block px-2 py-1 bg-red-100 text-red-800 rounded text-xs';
   }
 }
     
@@ -220,8 +216,7 @@ function updateQuoteInfo(quoteData) {
         });
     }
     
-  // Add this debugging code to your loadQuoteData function in quotes/view.html
-async function loadQuoteData() {
+ async function loadQuoteData() {
   try {
     const quoteId = getQuoteId();
     
@@ -239,26 +234,28 @@ async function loadQuoteData() {
     }
     
     const quoteData = await response.json();
-    console.log('Fetched quote data:', quoteData); // Debug: Log the full quote data
+    console.log('Fetched quote data:', quoteData);
     
-    // Check if products array exists and has content
-    if (quoteData.products && quoteData.products.length > 0) {
-      console.log(`Found ${quoteData.products.length} products in quote data`);
-    } else {
-      console.warn('No products found in quote data');
-    }
-    
-    // Rest of your existing code...
+    // Update UI with quote data
     updateQuoteInfo(quoteData);
+    
+    // If the quote is still processing, set up polling
+    if (quoteData.status === 'processing') {
+      setupStatusPolling(quoteId);
+      return;
+    }
     
     // Ensure we're using the correct markup value
     const markup = parseInt(document.getElementById('markupSlider').value);
-    renderProducts(quoteData.products, markup);
+    renderProducts(quoteData.products || [], markup);
     
     // Set up markup slider
-    setupMarkupSlider(quoteData.products);
+    setupMarkupSlider(quoteData.products || []);
     
-    // ... rest of your function
+    // Set up create products button
+    document.getElementById('createProductsBtn').addEventListener('click', () => {
+      createProducts(quoteId);
+    });
   } catch (error) {
     console.error('Error loading quote:', error);
     showError(error.message);
@@ -309,13 +306,22 @@ async function loadQuoteData() {
 
 function setupStatusPolling(quoteId) {
   const pollInterval = setInterval(async () => {
-    const response = await fetch(`/api/quotes/${quoteId}`);
-    const quoteData = await response.json();
-    
-    if (quoteData.status !== 'processing') {
-      // Processing completed or failed, update UI
-      updateUI(quoteData);
-      clearInterval(pollInterval); // Stop polling
+    try {
+      const response = await fetch(`/api/quotes/${quoteId}`);
+      const quoteData = await response.json();
+      
+      // Update the UI with current status
+      updateQuoteInfo(quoteData);
+      
+      if (quoteData.status !== 'processing') {
+        // Processing completed, update the UI and stop polling
+        const markup = parseInt(document.getElementById('markupSlider').value);
+        renderProducts(quoteData.products || [], markup);
+        setupMarkupSlider(quoteData.products || []);
+        clearInterval(pollInterval);
+      }
+    } catch (error) {
+      console.error('Error polling quote status:', error);
     }
   }, 3000); // Check every 3 seconds
 }
