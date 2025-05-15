@@ -1182,6 +1182,11 @@ app.get('/api/debug/app-state', async (req, res) => {
   }
 });
 
+app.get('/quotes/:quoteId/products', (req, res) => {
+  sendFileWithNav(res, path.join(publicPath, 'quotes/view.html'));
+  // Or create a dedicated products.html page
+});
+
 // Start the server
 app.listen(port, () => {
   console.log(`Multi-Supplier Management app listening on port ${port}`);
