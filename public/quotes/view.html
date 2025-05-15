@@ -82,6 +82,19 @@
     </div>
 </div>
 
+    <!-- Add to your quotes/view.html or upload.html page -->
+<button id="refreshData" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
+  Refresh Data
+</button>
+
+<script>
+  document.getElementById('refreshData').addEventListener('click', () => {
+    // Reload the current quote data
+    const quoteId = /* get your current quote ID */;
+    fetchQuoteData(quoteId);
+  });
+</script>
+
 <script>
     // Get quote ID from URL
     function getQuoteId() {
