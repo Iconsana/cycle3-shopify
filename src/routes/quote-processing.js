@@ -681,6 +681,7 @@ function cleanDescription(text) {
 router.get('/:quoteId', async (req, res) => {
   try {
     const quoteId = req.params.quoteId;
+    console.log(`Fetching quote ${quoteId} details`);
     
     // Fetch the actual processed quote data from the database
     const db = await getDB();
@@ -696,8 +697,19 @@ router.get('/:quoteId', async (req, res) => {
       return res.status(404).json({ error: 'Quote not found' });
     }
     
-    // Return the quote data
-    res.json(quote);
+    // Add processing status info to the response
+    const response = {
+      id: quote.id,
+      products: quote.products || [],
+      status: quote.status || 'processing',
+      processingComplete: quote.status === 'completed' || quote.status === 'processed', // Your code uses 'processed' status
+      timestamp: new Date().toISOString()
+    };
+    
+    console.log(`Returning quote ${quoteId} with status: ${response.status}, products: ${response.products.length}`);
+    
+    // Return the enhanced quote data
+    res.json(response);
     
   } catch (error) {
     console.error('Error fetching quote:', error);
@@ -1187,21 +1199,6 @@ router.get('/', async (req, res) => {
   } catch (error) {
     console.error('Error fetching quotes:', error);
     res.status(500).json({ error: 'Failed to fetch quotes', message: error.message });
-  }
-});
-
-// This might be in src/routes/quote-processing.js or another file that handles background processing
-
-// Existing code
-db.updateQuote(quoteId, {
-  products: extractedProducts,
-  // Add this line to update the status
-  status: 'completed'
-}, (err) => {
-  if (err) {
-    console.error(`Error updating quote ${quoteId}:`, err);
-  } else {
-    console.log(`Quote ${quoteId} processing completed and saved to database`);
   }
 });
 
